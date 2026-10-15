@@ -142,7 +142,9 @@ const KEY = '<?= k ?>'; // 利用者ごとのアクセスキー（URLの ?k=）�
 // Googleの外（GitHub Pages等）に置いたときは、メール＋確認コードでログインし、Cookieなしの fetch で API を呼ぶ
 const STATIC = !(window.google && google.script && google.script.run);
 const API_URL = 'https://script.google.com/macros/s/AKfycbxPqEh5EcItMSirYVbk6rRY03aDqRTYBuMILXjLDvdXwB_UGDS8vCQsmQbOg9SVNwEjoQ/exec';
-const TK = { get: () => { try { return localStorage.getItem('lm_token') || ''; } catch (e) { return ''; } }, set: v => { try { v ? localStorage.setItem('lm_token', v) : localStorage.removeItem('lm_token'); } catch (e) {} } };
+// 同じドメイン（github.io）に複数社のログイン画面を置くので、保存先は会社（API_URL）ごとに分ける。分けないと別の会社に入ると前の会社のログインが上書きされる
+const NS = STATIC ? '_' + API_URL.replace(/\/exec$/, '').slice(-16) : '';
+const TK = { get: () => { try { return localStorage.getItem('lm_token' + NS) || ''; } catch (e) { return ''; } }, set: v => { try { v ? localStorage.setItem('lm_token' + NS, v) : localStorage.removeItem('lm_token' + NS); } catch (e) {} } };
 let D = null;               // api_bootstrap の戻り
 const UI = { page: 'home', alert: 'all', list: { q: '', st: '', camp: '', owner: '', from: '', to: '', need: false }, ana: { from: '', to: '', camp: '', media: '', basis: 'recv' }, sel: null, sort: { k: '受信日時', d: -1 } };
 const $ = s => document.querySelector(s);
@@ -189,7 +191,7 @@ function showLogin(msg) {
       <button class="btn pri" id="lgVerify" style="width:100%">ログイン</button>
       <div style="margin-top:10px;text-align:center"><a href="#" id="lgBack" class="sm">メールアドレスを入れ直す・コードを送り直す</a></div></div>
     <div id="lgErr" class="red sm" style="margin-top:10px"></div></div>`;
-  let saved = ''; try { saved = localStorage.getItem('lm_email') || ''; } catch (e) {}
+  let saved = ''; try { saved = localStorage.getItem('lm_email' + NS) || ''; } catch (e) {}
   $('#lgEmail').value = saved;
   const err = m => { $('#lgErr').textContent = m || ''; };
   const busy = (b, on, t) => { b.disabled = on; b.textContent = t; };
@@ -199,7 +201,7 @@ function showLogin(msg) {
     const r = await api({ action: 'requestCode', email: em });
     busy($('#lgSend'), false, '確認コードを送る');
     if (!r.ok) return err(r.error);
-    try { localStorage.setItem('lm_email', em); } catch (e) {}
+    try { localStorage.setItem('lm_email' + NS, em); } catch (e) {}
     $('#lgTo').textContent = em; $('#lgStep1').style.display = 'none'; $('#lgStep2').style.display = ''; $('#lgCode').focus();
   };
   $('#lgEmail').onkeydown = e => { if (e.key === 'Enter') $('#lgSend').click(); };
@@ -710,7 +712,7 @@ function closeLead() { UI.sel = null; $('#drawer').classList.remove('open'); $('
 function drawLead(l, logs) {
   const R = D.master.results, cats = [...new Set(R.map(r => r.cat))];
   const callers = [...new Set(D.master.callers.concat(D.users || []))];
-  const defCaller = (() => { try { return localStorage.getItem('caller'); } catch (e) { return ''; } })() || D.me.name;
+  const defCaller = (() => { try { return localStorage.getItem('caller' + NS); } catch (e) { return ''; } })() || D.me.name;
   const dup = l['重複元ID'] && D.leads.find(x => x['リードID'] === l['重複元ID']);
   const sameTel = D.leads.filter(x => x !== l && x['電話番号'] && x['電話番号'].replace(/\D/g, '') === l['電話番号'].replace(/\D/g, ''));
   const inSec = !!l['アポ日時'] || !!l['商談ステータス'];
@@ -787,7 +789,7 @@ function drawLead(l, logs) {
   const undup = $('#undup'); if (undup) undup.onclick = () => saveAnd('api_updateLead', l, { undup: true }, '重複を解除しました');
   $('#cSave').onclick = () => {
     if (!DR.result) return toast('架電結果を選んでください');
-    try { localStorage.setItem('caller', $('#cCaller').value); } catch (e) {}
+    try { localStorage.setItem('caller' + NS, $('#cCaller').value); } catch (e) {}
     saveAnd('api_logCall', l, { result: DR.result, caller: $('#cCaller').value, at: $('#cAt').value.replace('T', ' '), next: $('#cNext').value.replace('T', ' '), apoAt: $('#cApo').value.replace('T', ' '), apoType: $('#cApoType').value, memo: $('#cMemo').value }, '架電結果を保存しました');
   };
   $('#dSave').onclick = () => saveAnd('api_saveDeal', l, { deal: $('#dDeal').value, apoAt: $('#dApo').value.replace('T', ' '), apoType: $('#dApoType').value, date: $('#dDate').value, quote: $('#dQuote').value, product: $('#dProd').value, wonDate: $('#dWon').value, sales: $('#dSales').value, gross: $('#dGross').value, lostReason: $('#dLost').value, sales_rep: $('#dRep').value, memo: $('#dMemo').value }, '商談を保存しました');
