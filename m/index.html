@@ -514,7 +514,6 @@ function editTalk(camp, box, after) {
 }
 const ST_ORDER = ['未対応', '追客中', 'アポ獲得', '商談中', '成約', '失注', '断り', '対象外', '重複'];
 // ステータスの階層（全て → 無効／有効 → 追客中／アポ → 初訪NG／商談 → 成約／失注／検討 → ランク）
-// 無効＝持ち家戸建て以外・エリア外・重複・対象外（アポを取ったリードは有効に数える）
 // 商談の結果は進捗表の商談結果（O列）。進捗表がない会社・行は商談ステータスで判定
 const dealRes = l => {
   const s = String(l['進捗_商談結果'] || '');
@@ -523,7 +522,7 @@ const dealRes = l => {
   return d === '成約' ? '成約' : d === '失注' ? '失注' : ['検討中', '現調・見積中'].includes(d) ? '検討' : '';
 };
 const rankOf = l => { const r = String(l['進捗_ランク'] || '').toUpperCase().match(/[ABC]/); return r ? r[0] : ''; };
-const isInvalid = l => !l._apo && (l._notHouse || l._areaOut || ['重複', '対象外'].includes(l['ステータス']));
+const isInvalid = l => !l._valid; // 有効・無効はリード情報（会社ごとの定義＝サーバーの validRule）で決める
 function statusTree() {
   const val = l => !isInvalid(l), fol = l => val(l) && !l._apo, dl = l => l._apo && !!dealRes(l), cons = l => l._apo && dealRes(l) === '検討';
   return [
