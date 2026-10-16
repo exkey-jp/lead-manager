@@ -182,9 +182,20 @@ function call(fn, ...args) {
   return new Promise((ok, ng) => google.script.run.withSuccessHandler(ok).withFailureHandler(e => { toast('エラー：' + (e.message || e)); ng(e); }).api_call(KEY, fn, args));
 }
 // Cookie を送らない（複数アカウントでログインしていても Google のエラーにならない）
-function api(body) {
-  return fetch(API_URL, { method: 'POST', body: JSON.stringify(body), credentials: 'omit', redirect: 'follow' })
-    .then(r => r.json()).catch(e => ({ ok: false, error: '通信できませんでした。電波の良い場所でもう一度お試しください' }));
+// 失敗したときは原因（HTTPの状態・応答の先頭・エラー内容）を画面に出し、1回だけ自動で再試行する
+async function api(body, retry = 1) {
+  let stage = '送信', status = '', head = '';
+  try {
+    const r = await fetch(API_URL, { method: 'POST', body: JSON.stringify(body), credentials: 'omit', redirect: 'follow' });
+    status = r.status; stage = '受信';
+    const t = await r.text(); head = t.slice(0, 120).replace(/\s+/g, ' '); stage = '解析';
+    return JSON.parse(t);
+  } catch (e) {
+    if (retry > 0) { await new Promise(ok => setTimeout(ok, 1500)); return api(body, retry - 1); }
+    const why = `${stage}で失敗${status ? '（HTTP ' + status + '）' : ''}：${e && e.message ? e.message : e}${head ? ' ／応答：' + head : ''}`;
+    console.error('api', why);
+    return { ok: false, error: '通信できませんでした。もう一度お試しください。［詳細］' + why };
+  }
 }
 function showLogin(msg) {
   const el = $('#loading'); el.style.display = 'flex';
