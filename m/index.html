@@ -353,7 +353,7 @@ function leadRows(list, cols) {
   return `<div class="tblwrap"><table><thead><tr>${cols.map(c => `<th>${C[c][0]}</th>`).join('')}</tr></thead><tbody>${list.map(l => `<tr class="click ${l['ステータス'] === '重複' ? 'dup' : ''}" data-id="${l['リードID']}">${cols.map(c => `<td>${C[c][1](l)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
 }
 
-// 進捗ビュー：左＝商談結果（アポ後）、右＝アポ取得までの架電。1行で両方を追える
+// 進捗ビュー：左＝アポ取得進捗（架電〜アポ取得）、右＝商談進捗（アポ後）。1行で両方を追える
 function progRows(list, showCamp) {
   if (!list.length) return `<div class="empty">該当するリードはありません</div>`;
   const lead = [['受信', l => md(l['受信日時'])], ['氏名', l => `<b>${esc(l['氏名'])}</b>${l._notHouse ? '<span class="nh">戸建て以外</span>' : ''}${l._areaOut ? '<span class="nh">エリア外</span>' : ''}`]]
@@ -378,9 +378,9 @@ function progRows(list, showCamp) {
   const th = (a, cls) => a.map((c, i) => `<th class="${cls}${i === 0 && cls ? ' first' : ''}">${c[0]}</th>`).join('');
   const td = (l, a, cls) => a.map((c, i) => `<td class="${cls}${i === 0 && cls ? ' first' : ''}">${c[1](l)}</td>`).join('');
   return `<div class="tblwrap prog"><table><thead>
-    <tr><th class="g lead" colspan="${lead.length}">リード</th><th class="g deal" colspan="${deal.length}">商談結果（アポ後）</th><th class="g call" colspan="${callc.length}">架電〜アポ取得</th></tr>
-    <tr>${th(lead, '')}${th(deal, 'dl')}${th(callc, 'cl')}</tr></thead>
-    <tbody>${list.map(l => `<tr class="click ${l['ステータス'] === '重複' ? 'dup' : ''}" data-id="${l['リードID']}">${td(l, lead, '')}${td(l, deal, 'dl')}${td(l, callc, 'cl')}</tr>`).join('')}</tbody></table></div>`;
+    <tr><th class="g lead" colspan="${lead.length}">リード</th><th class="g call" colspan="${callc.length}">アポ取得進捗</th><th class="g deal" colspan="${deal.length}">商談進捗</th></tr>
+    <tr>${th(lead, '')}${th(callc, 'cl')}${th(deal, 'dl')}</tr></thead>
+    <tbody>${list.map(l => `<tr class="click ${l['ステータス'] === '重複' ? 'dup' : ''}" data-id="${l['リードID']}">${td(l, lead, '')}${td(l, callc, 'cl')}${td(l, deal, 'dl')}</tr>`).join('')}</tbody></table></div>`;
 }
 
 const shortQ = q => { const t = q.replace(/^Q(\d+)[.．:：、]?\s*/, 'Q$1 ').replace(/を教えてください|を教えて下さい|ですか[？?]|[は]?[？?]$/g, ''); return t.length > 14 ? t.slice(0, 14) + '…' : t; };
@@ -448,7 +448,7 @@ function renderList() {
     <select id="fsort">${[['受信日時', '受信日時'], ['最終架電日時', '最終架電日時'], ['次回架電予定', '次回架電予定'], ['アポ日時', 'アポ日時'], ['更新日時', '更新日時']].map(([v, t]) => `<option value="${v}" ${k === v ? 'selected' : ''}>${t}順</option>`).join('')}</select>
     <button class="btn sm" id="fdir">${d < 0 ? '新しい順' : '古い順'}</button>
     <label class="sm" style="display:inline-flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="fapo" ${F.apoOnly ? 'checked' : ''}>アポ取得したリードだけ</label>
-    <span class="seg" style="margin-left:auto"><button data-view="list" class="${F.view !== 'prog' ? 'on' : ''}">一覧</button><button data-view="prog" class="${F.view === 'prog' ? 'on' : ''}" title="左＝商談結果、右＝アポ取得までの架電">進捗（商談｜架電）</button></span>
+    <span class="seg" style="margin-left:auto"><button data-view="list" class="${F.view !== 'prog' ? 'on' : ''}">一覧</button><button data-view="prog" class="${F.view === 'prog' ? 'on' : ''}" title="左＝アポ取得進捗（架電〜アポ取得）、右＝商談進捗（アポ後）">進捗（アポ取得｜商談）</button></span>
     <span class="sub sm">${list.length}件</span>
   </div>
   <div class="chips" style="margin-bottom:12px"><span class="chip ${!F.st ? 'on' : ''}" data-st="">すべて ${base.length}</span>${ST_ORDER.map(s => `<span class="chip ${F.st === s ? 'on' : ''}" data-st="${s}">${s} ${cnt[s] || 0}</span>`).join('')}</div>
