@@ -521,25 +521,29 @@ const dealRes = l => {
   const d = l['商談ステータス'];
   return d === '成約' ? '成約' : d === '失注' ? '失注' : ['検討中', '現調・見積中'].includes(d) ? '検討' : '';
 };
+// 初訪NG＝進捗表の訪問結果が NG・ツブレ（進捗表がないときは商談ステータスのツブレ）。それ以外のアポは商談
+const visitNG = l => { const v = String(l['進捗_訪問結果'] || ''); return v ? /NG|ツブレ/i.test(v) : l['商談ステータス'] === 'ツブレ'; };
 const rankOf = l => { const r = String(l['進捗_ランク'] || '').toUpperCase().match(/[ABC]/); return r ? r[0] : ''; };
 const isInvalid = l => !l._valid; // 有効・無効はリード情報（会社ごとの定義＝サーバーの validRule）で決める
 function statusTree() {
-  const val = l => !isInvalid(l), fol = l => val(l) && !l._apo, dl = l => l._apo && !!dealRes(l), cons = l => l._apo && dealRes(l) === '検討';
+  // 階層なので、アポ以下は有効のリードだけ（無効のアポは「無効」に入る）
+  const val = l => !isInvalid(l), fol = l => val(l) && !l._apo, ap = l => val(l) && l._apo, dl = l => ap(l) && !visitNG(l), cons = l => dl(l) && dealRes(l) === '検討';
   return [
     { k: 'all', t: '全て', d: 0, f: l => true },
     { k: 'inv', t: '無効', d: 1, m: '×', f: isInvalid },
     { k: 'val', t: '有効', d: 1, f: val },
     { k: 'fol', t: '追客中', d: 2, m: '×', f: fol },
-    { k: 'apo', t: 'アポ', d: 2, f: l => l._apo },
-    { k: 'fng', t: '初訪NG', d: 3, f: l => l._apo && !dealRes(l) },
+    { k: 'apo', t: 'アポ', d: 2, f: ap },
+    { k: 'fng', t: '初訪NG', d: 3, f: l => ap(l) && visitNG(l) },
     { k: 'deal', t: '商談', d: 3, f: dl },
-    { k: 'won', t: '成約', d: 4, m: '◯', f: l => l._apo && dealRes(l) === '成約' },
-    { k: 'lost', t: '失注', d: 4, m: '×', f: l => l._apo && dealRes(l) === '失注' },
+    { k: 'won', t: '成約', d: 4, m: '◯', f: l => dl(l) && dealRes(l) === '成約' },
+    { k: 'lost', t: '失注', d: 4, m: '×', f: l => dl(l) && dealRes(l) === '失注' },
     { k: 'cons', t: '検討', d: 4, f: cons },
     { k: 'rA', t: 'ランクA', d: 5, f: l => cons(l) && rankOf(l) === 'A' },
     { k: 'rB', t: 'ランクB', d: 5, f: l => cons(l) && rankOf(l) === 'B' },
     { k: 'rC', t: 'ランクC', d: 5, f: l => cons(l) && rankOf(l) === 'C' },
     { k: 'rN', t: 'ランク未設定', d: 5, f: l => cons(l) && !rankOf(l) },
+    { k: 'pre', t: '商談前', d: 4, f: l => dl(l) && !dealRes(l) },
   ];
 }
 
