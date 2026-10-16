@@ -16,7 +16,7 @@ nav button{border:0;background:none;padding:0 14px;font:inherit;color:var(--sub)
 nav button.on{color:var(--pri);border-bottom-color:var(--pri);font-weight:700}
 nav .badge{background:var(--red);color:#fff;border-radius:10px;padding:0 6px;font-size:11px;margin-left:4px}
 .hd-right{margin-left:auto;display:flex;align-items:center;gap:10px;color:var(--sub);font-size:12px}
-main{padding:20px;max-width:1500px;margin:0 auto}
+main{padding:10px 12px;margin:0 auto}
 .btn{border:1px solid var(--line);background:#fff;border-radius:8px;padding:6px 12px;font:inherit;cursor:pointer;color:var(--ink)}
 .btn:hover{background:var(--graybg)}
 .btn.pri{background:var(--pri);border-color:var(--pri);color:#fff}
@@ -45,7 +45,7 @@ tr.click{cursor:pointer} tr.click:hover td{background:#f7f9ff}
 tr.total td{font-weight:700;background:#fafbfc}
 tr.lost td{background:#eceff1!important;color:#9aa0a6}tr.lost td b{color:#80868b}tr.lost .st,tr.lost .dst{background:#dadce0;color:#5f6368}
 tr.dup td{background:#262626!important;color:#9a9a9a}tr.dup td b{color:#bbb}tr.dup .st{background:#444;color:#ccc}
-.nh{font-size:11px;padding:0 6px;border-radius:4px;background:#fde8e6;color:#d93025;margin-left:4px}
+.nh{font-size:10px;padding:0 3px;border-radius:3px;background:#fde8e6;color:#d93025;margin-left:2px}
 .tblwrap{overflow:auto;border:1px solid var(--line);border-radius:12px;max-height:70vh;background:#fff}
 .st{display:inline-block;padding:1px 8px;border-radius:10px;font-size:12px;font-weight:600}
 .st-未対応{background:var(--redbg);color:var(--red)} .st-追客中{background:var(--yelbg);color:var(--yel)}
@@ -61,14 +61,22 @@ tr.dup td{background:#262626!important;color:#9a9a9a}tr.dup td b{color:#bbb}tr.d
 .seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden} .seg button{border:0;background:#fff;padding:6px 12px;font:inherit;cursor:pointer;color:var(--sub)} .seg button.on{background:var(--pri);color:#fff}
 .tag{font-size:11px;padding:0 6px;border-radius:4px;background:var(--graybg);color:var(--sub)}
 .red{color:var(--red)} .yel{color:var(--yel)} .sub{color:var(--sub)} .b{font-weight:700} .sm{font-size:12px}
-.filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
+.filters{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:6px}
 select,input,textarea{font:inherit;border:1px solid var(--line);border-radius:8px;padding:6px 8px;background:#fff;color:var(--ink)}
 textarea{width:100%;min-height:60px}
 .chips{display:flex;flex-wrap:wrap;gap:6px}
 .chip{border:1px solid var(--line);border-radius:16px;padding:3px 10px;cursor:pointer;background:#fff;font-size:12px}
-.lwrap{display:flex;gap:12px;align-items:flex-start}.lmain{flex:1;min-width:0}
-.stree{flex:0 0 auto;display:flex;flex-direction:column;align-items:flex-start;gap:3px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 12px;position:sticky;top:68px;max-height:calc(100vh - 90px);overflow:auto}
-@media(max-width:900px){.lwrap{flex-direction:column}.stree{position:static;max-height:none}}.stree .chip b{font-variant-numeric:tabular-nums}
+.lwrap{display:flex;gap:8px;align-items:flex-start}
+td.cpa{color:var(--pri);font-weight:700}th.cpa{color:var(--pri)}.lmain{flex:1;min-width:0}
+/* リード一覧はスプシのように詰めて表示（画面の大半をリードに使う） */
+#p-list .filters select,#p-list .filters input{padding:3px 6px;font-size:12px}#p-list .filters .btn{padding:3px 8px;font-size:12px}
+#p-list .tblwrap{max-height:calc(100vh - 150px);border-radius:8px}
+#p-list table{font-size:11.5px}#p-list th,#p-list td{padding:2px 5px}#p-list th{font-size:10.5px}
+#p-list td{max-width:96px;overflow:hidden;text-overflow:ellipsis}#p-list td.cmp{max-width:86px}#p-list .hist{max-width:120px}#p-list .memoCell{max-width:110px;min-width:70px}
+#p-list .st,#p-list .dst{font-size:11px;padding:0 6px}
+details.campinfo{margin-bottom:6px}details.campinfo>summary{cursor:pointer;font-size:12px;color:var(--sub);padding:2px 0}
+.stree{flex:0 0 auto;display:flex;flex-direction:column;align-items:flex-start;gap:2px;background:#fff;border:1px solid var(--line);border-radius:8px;padding:6px 8px;font-size:11px;position:sticky;top:68px;max-height:calc(100vh - 90px);overflow:auto}
+@media(max-width:900px){.lwrap{flex-direction:column}.stree{position:static;max-height:none}}.stree .chip b{font-variant-numeric:tabular-nums}.stree .chip{font-size:11px;padding:1px 8px}
 .chip.on{background:var(--ink);color:#fff;border-color:var(--ink)}
 .kpis{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
 .kpi .l{color:var(--sub);font-size:12px}
@@ -114,13 +122,13 @@ textarea{width:100%;min-height:60px}
 .pill{display:inline-block;background:var(--graybg);border-radius:6px;padding:2px 8px;margin:2px;font-size:12px}
 .loading{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:var(--bg);z-index:100;color:var(--sub)}
 .costin{width:110px;text-align:right}
-.ctabs{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:14px}
-.ctab{flex:none;border:1px solid var(--line);background:#fff;border-radius:10px;padding:8px 14px;font:inherit;cursor:pointer;color:var(--ink);display:flex;align-items:center;gap:6px}
+.ctabs{display:flex;gap:4px;overflow-x:auto;padding-bottom:2px;margin-bottom:6px}
+.ctab{flex:none;border:1px solid var(--line);background:#fff;border-radius:8px;padding:4px 10px;font-size:12px!important;font:inherit;cursor:pointer;color:var(--ink);display:flex;align-items:center;gap:6px}
 .ctab.on{background:var(--ink);color:#fff;border-color:var(--ink)} .ctab.on .tag{background:#444;color:#ddd}
 .cbadge{background:var(--red);color:#fff;border-radius:10px;padding:0 7px;font-size:11px;font-weight:700}
 .talktxt{max-height:260px;overflow:auto;font-size:13px;line-height:1.7}
-.hist{font-size:11px;line-height:1.5;max-height:72px;overflow:auto;white-space:nowrap}
-.memoCell{min-width:180px;max-width:260px;white-space:pre-wrap;font-size:12px;cursor:text;border:1px dashed transparent;border-radius:6px;padding:2px 4px;max-height:72px;overflow:auto}
+.hist{font-size:11px;line-height:1.4;max-height:44px;overflow:auto;white-space:nowrap}
+.memoCell{min-width:90px;max-width:180px;white-space:pre-wrap;font-size:11px;line-height:1.4;cursor:text;border:1px dashed transparent;border-radius:6px;padding:1px 3px;max-height:44px;overflow:auto}
 .memoCell:hover{border-color:var(--line);background:#fff}
 td textarea.memoEdit{width:240px;min-height:70px;font-size:12px}
 .hint{background:var(--yelbg);border-radius:8px;padding:8px 12px;font-size:12px;color:#6b4a00;margin-bottom:12px}
@@ -157,7 +165,7 @@ const API_URL = 'https://script.google.com/macros/s/AKfycbwda4Nh1Xf2PVAm3bsSBB-4
 const NS = STATIC ? '_' + API_URL.replace(/\/exec$/, '').slice(-16) : '';
 const TK = { get: () => { try { return localStorage.getItem('lm_token' + NS) || ''; } catch (e) { return ''; } }, set: v => { try { v ? localStorage.setItem('lm_token' + NS, v) : localStorage.removeItem('lm_token' + NS); } catch (e) {} } };
 let D = null;               // api_bootstrap の戻り
-const UI = { page: 'home', alert: 'all', list: { q: '', st: '', camp: '', owner: '', from: '', to: '', need: false, view: 'list', apoOnly: false }, ana: { from: '', to: '', camp: '', media: '', basis: 'recv' }, sel: null, sort: { k: '受信日時', d: -1 } };
+const UI = { page: 'home', alert: 'all', list: { q: '', st: '', camp: '', owner: '', from: '', to: '', need: false, view: 'list', apoOnly: false, info: false, tree: (() => { try { return localStorage.getItem('tree' + NS) !== '0'; } catch (e) { return true; } })() }, ana: { from: '', to: '', camp: '', media: '', basis: 'recv' }, sel: null, sort: { k: '受信日時', d: -1 } };
 const $ = s => document.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const yen = n => (n == null || !isFinite(n)) ? '-' : '¥' + Math.round(n).toLocaleString();
@@ -350,16 +358,16 @@ function leadRows(list, cols) {
   if (!list.length) return `<div class="empty">該当するリードはありません</div>`;
   const C = {
     recv: ['受信', l => `${md(l['受信日時'])}`],
-    wait: ['経過', l => l['ステータス'] === '未対応' ? `<span class="${l._wait >= num(D.settings['初回架電の警告(分)']) ? 'red b' : l._wait >= num(D.settings['初回架電の目標(分)']) ? 'yel b' : ''}">${l._wait <= 0 ? '受付時間前' : ago(l._wait)}</span>` : (l._resp != null ? `<span class="sub">初回 ${ago(l._resp)}</span>` : '')],
-    camp: ['訴求', l => `<span class="sm">${esc(campName(l['訴求']))}</span>`],
+    wait: ['経過', l => l['ステータス'] === '未対応' ? `<span class="${l._wait >= num(D.settings['初回架電の警告(分)']) ? 'red b' : l._wait >= num(D.settings['初回架電の目標(分)']) ? 'yel b' : ''}">${l._wait <= 0 ? '受付時間前' : ago(l._wait)}</span>` : (l._resp != null ? `<span class="sub" title="初回架電までの時間">${ago(l._resp)}</span>` : '')],
+    camp: ['訴求', l => `<span class="sm" title="${esc(campName(l['訴求']))}">${esc(campName(l['訴求']))}</span>`],
     name: ['氏名', l => `<b>${esc(l['氏名'])}</b>${l._notHouse ? '<span class="nh">戸建て以外</span>' : ''}${l._areaOut ? '<span class="nh">エリア外</span>' : ''}`],
     pref: ['都道府県', l => esc(l['都道府県'])],
     tel: ['電話番号', l => esc(l['電話番号'])],
     st: ['ステータス', l => stBadge(l['ステータス'])],
     cnt: ['架電', l => num(l['架電回数']) || ''],
-    last: ['最終結果', l => `<span class="sm">${esc(String(l['最終架電結果']).replace('/', '・'))}</span>`],
-    lastAt: ['最終架電日時', l => md(String(l['最終架電日時']))],
-    hist: ['架電履歴', l => l._hist.length ? `<div class="hist">${l._hist.map(g => `<div>${md(String(g[0]))} ${esc(g[5] || g[4])}${g[3] ? `<span class="sub">（${esc(g[3])}）</span>` : ''}</div>`).join('')}</div>` : ''],
+    last: ['最終結果', l => `<span class="sm" title="${esc(String(l['最終架電結果']))}">${esc(String(l['最終架電結果']).replace(/^[^/]*\//, ''))}</span>`],
+    lastAt: ['最終架電', l => md(String(l['最終架電日時']))],
+    hist: ['架電履歴', l => l._hist.length ? `<div class="hist">${l._hist.map(g => `<div title="${esc(g[3] || '')}">${md(String(g[0]))} ${esc(g[5] || g[4])}</div>`).join('')}</div>` : ''],
     memo: ['備考メモ', l => `<div class="memoCell" data-memo="${l['リードID']}" title="クリックして入力">${l['メモ'] ? esc(l['メモ']) : '<span class="sub">＋ 入力</span>'}</div>`],
     next: ['次回架電', l => { const d = toD(l['次回架電予定']); return d ? `<span class="${d < Date.now() ? 'red b' : ''}">${md(l['次回架電予定'])}</span>` : ''; }],
     apo: ['アポ日時', l => md(l['アポ日時'])],
@@ -369,7 +377,7 @@ function leadRows(list, cols) {
     sales: ['売上', l => l._won ? yen(l._sales) : ''],
   };
   cols.filter(c => c.startsWith('q:')).forEach(c => { const q = c.slice(2); C[c] = [`<span title="${esc(q)}">${esc(shortQ(q))}</span>`, l => `<span class="sm">${esc(l._ans[q] || '')}</span>`]; });
-  return `<div class="tblwrap"><table><thead><tr>${cols.map(c => `<th>${C[c][0]}</th>`).join('')}</tr></thead><tbody>${list.map(l => `<tr class="click ${rowCls(l)}" data-id="${l['リードID']}">${cols.map(c => `<td>${C[c][1](l)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+  return `<div class="tblwrap"><table><thead><tr>${cols.map(c => `<th>${C[c][0]}</th>`).join('')}</tr></thead><tbody>${list.map(l => `<tr class="click ${rowCls(l)}" data-id="${l['リードID']}">${cols.map(c => `<td${c === 'camp' ? ' class="cmp"' : ''}>${C[c][1](l)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
 }
 
 // 進捗ビュー：左＝アポ取得進捗（架電〜アポ取得）、右＝商談進捗（アポ後）。1行で両方を追える
@@ -452,7 +460,7 @@ function renderList() {
   if (F.camp) {
     const c = CAMP(F.camp), all = L.filter(l => l['訴求'] === F.camp), m = metrics(all, 0);
     qcols = [...new Set(all.flatMap(l => Object.keys(l._ans)))].map(q => 'q:' + q);
-    head = `<div class="grid two" style="margin-bottom:12px;grid-template-columns:2fr 1fr">
+    head = `<details class="campinfo" ${UI.list.info ? 'open' : ''}><summary>トークスクリプト・この訴求の成果を${UI.list.info ? '閉じる' : '開く'}</summary><div class="grid two" style="margin-bottom:6px;grid-template-columns:2fr 1fr">
       <div class="card talk"><div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><h3 style="margin:0">トークスクリプト</h3><span class="sub sm">${esc(c['表示名'] || F.camp)}</span>${c['LP URL'] ? `<a class="sm" href="${esc(c['LP URL'])}" target="_blank">LPを見る</a>` : ''}<button class="btn sm" id="talkEdit" style="margin-left:auto">編集</button></div>
         <div id="talkBox">${talkView(c)}</div></div>
       <div class="card"><h3>この訴求の成果（全期間）</h3><div class="kv">
@@ -460,7 +468,7 @@ function renderList() {
         <div>アポ</div><div><b>${m.apo}件</b>（アポ率 ${pct(m.apo, m.valid)}）</div>
         <div>商談 / 成約</div><div>${m.deal} / <b>${m.won}件</b>（成約率 ${pct(m.won, m.deal)}）</div>
         <div>新規売上</div><div><b>${yen(m.sales)}</b></div></div>
-        <div class="note"><a href="#" id="toAna">成果分析でくわしく見る →</a></div></div></div>`;
+        <div class="note"><a href="#" id="toAna">成果分析でくわしく見る →</a></div></div></div></details>`;
   }
   $('#p-list').innerHTML = `${tabs}${head}
   <div class="filters">
@@ -470,17 +478,20 @@ function renderList() {
     <select id="fto"><option value="">指定なし</option>${mons.map(m => `<option ${F.to === m ? 'selected' : ''}>${m}</option>`).join('')}</select>
     <select id="fsort">${[['受信日時', '受信日時'], ['最終架電日時', '最終架電日時'], ['次回架電予定', '次回架電予定'], ['アポ日時', 'アポ日時'], ['更新日時', '更新日時']].map(([v, t]) => `<option value="${v}" ${k === v ? 'selected' : ''}>${t}順</option>`).join('')}</select>
     <button class="btn sm" id="fdir">${d < 0 ? '新しい順' : '古い順'}</button>
+<button class="btn sm" id="ftree" title="左のステータス階層の表示を切り替え">${F.tree === false ? '階層を表示' : '階層を隠す'}</button>
     <label class="sm" style="display:inline-flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="fapo" ${F.apoOnly ? 'checked' : ''}>アポ取得したリードだけ</label>
     <span class="seg" style="margin-left:auto"><button data-view="list" class="${F.view !== 'prog' ? 'on' : ''}">一覧</button><button data-view="prog" class="${F.view === 'prog' ? 'on' : ''}" title="左＝アポ取得進捗（架電〜アポ取得）、右＝商談進捗（アポ後）">進捗（アポ取得｜商談）</button></span>
     <span class="sub sm">${list.length}件</span>
   </div>
-  <div class="lwrap"><div class="stree">${TREE.map(n => `<span class="chip ${(F.st || 'all') === n.k ? 'on' : ''}" data-st="${n.k === 'all' ? '' : n.k}" style="margin-left:${n.d * 22}px">${n.d ? '<span class="sub">∟</span> ' : ''}${esc(n.t)} <b>${base.filter(n.f).length}</b>${n.m ? ` <span class="sub">（${n.m}）</span>` : ''}</span>`).join('')}</div>
+  <div class="lwrap">${F.tree === false ? '' : `<div class="stree">${TREE.map(n => `<span class="chip ${(F.st || 'all') === n.k ? 'on' : ''}" data-st="${n.k === 'all' ? '' : n.k}" style="margin-left:${n.d * 12}px">${n.d ? '<span class="sub">∟</span> ' : ''}${esc(n.t)} <b>${base.filter(n.f).length}</b></span>`).join('')}</div>`}
   <div class="lmain">${F.view === 'prog' ? progRows(list.slice(0, 500), !F.camp) : leadRows(list.slice(0, 500), F.camp ? ['recv', 'wait', 'name', 'pref', 'tel', ...qcols, 'st', 'cnt', 'last', 'lastAt', 'hist', 'memo', 'next', 'apo', 'deal', ...DRES, 'sales', 'owner'] : ['recv', 'wait', 'camp', 'name', 'pref', 'tel', 'st', 'cnt', 'last', 'lastAt', 'hist', 'memo', 'next', 'apo', 'deal', ...DRES, 'sales', 'owner'])}
   ${list.length > 500 ? '<div class="note">先頭500件を表示しています。絞り込んでください。</div>' : ''}</div></div>`;
   const set = (id, key, ev = 'change') => $(id).addEventListener(ev, e => { F[key] = e.target.value; renderList(); if (id === '#fq') { $('#fq').focus(); $('#fq').setSelectionRange(99, 99); } });
   set('#fq', 'q', 'input'); set('#fowner', 'owner'); set('#ffrom', 'from'); set('#fto', 'to');
   $('#fsort').onchange = e => { UI.sort.k = e.target.value; renderList(); };
   $('#fapo').onchange = e => { F.apoOnly = e.target.checked; renderList(); };
+  $('#ftree').onclick = () => { F.tree = F.tree === false; try { localStorage.setItem('tree' + NS, F.tree ? '1' : '0'); } catch (e) {} renderList(); };
+  const ci = document.querySelector('#p-list details.campinfo'); if (ci) ci.ontoggle = () => { F.info = ci.open; ci.querySelector('summary').textContent = 'トークスクリプト・この訴求の成果を' + (ci.open ? '閉じる' : '開く'); };
   document.querySelectorAll('#p-list .seg button').forEach(b => b.onclick = () => { F.view = b.dataset.view; renderList(); });
   $('#fdir').onclick = () => { UI.sort.d *= -1; renderList(); };
   if (F.camp) {
@@ -579,13 +590,13 @@ function renderAna() {
   const L = D.leads.filter(inF);
   const M = metrics(L, costOf(months, F.camp, F.media));
   const row = (label, m, extra = '') => `<tr ${extra}><td>${label}</td>
-    <td class="num">${yen(m.cost)}</td><td class="num">${m.n}</td><td class="num">${m.valid}</td><td class="num">${pct(m.valid, m.n)}</td><td class="num">${yen(div(m.cost, m.n))}</td><td class="num">${yen(div(m.cost, m.valid))}</td>
+    <td class="num">${yen(m.cost)}</td><td class="num">${m.n}</td><td class="num">${m.valid}</td><td class="num">${pct(m.valid, m.n)}</td><td class="num cpa">${yen(div(m.cost, m.n))}</td><td class="num">${yen(div(m.cost, m.valid))}</td>
     <td class="num">${pct(m.called, m.uniq)}</td><td class="num">${pct(m.conn, m.called)}</td>
-    <td class="num b">${m.apo}</td><td class="num">${pct(m.apo, m.valid)}</td><td class="num">${yen(div(m.cost, m.apo))}</td>
+    <td class="num b">${m.apo}</td><td class="num">${pct(m.apo, m.valid)}</td><td class="num cpa">${yen(div(m.cost, m.apo))}</td>
     <td class="num">${m.deal}</td><td class="num">${pct(m.deal, m.apo)}</td>
-    <td class="num b">${m.won}</td><td class="num">${pct(m.won, m.deal)}</td><td class="num">${yen(div(m.cost, m.won))}</td>
+    <td class="num b">${m.won}</td><td class="num">${pct(m.won, m.deal)}</td><td class="num cpa">${yen(div(m.cost, m.won))}</td>
     <td class="num b">${yen(m.sales)}</td><td class="num">${yen(m.gross)}${m.grossEst ? '<span class="sub">*</span>' : ''}</td><td class="num ${m.profit < 0 ? 'red' : ''}">${m.cost ? yen(m.profit) : '-'}</td><td class="num">${m.cost ? (m.sales / m.cost * 100).toFixed(0) + '%' : '-'}</td></tr>`;
-  const thead = first => `<thead><tr><th>${first}</th><th class="num">広告費</th><th class="num">リード</th><th class="num">有効</th><th class="num">有効率</th><th class="num">CPL</th><th class="num">有効CPL</th><th class="num">架電率</th><th class="num">接続率</th><th class="num">アポ</th><th class="num">アポ率</th><th class="num">アポ単価</th><th class="num">商談</th><th class="num">商談実施率</th><th class="num">成約</th><th class="num">成約率</th><th class="num">成約単価</th><th class="num">売上</th><th class="num">粗利</th><th class="num">粗利−広告費</th><th class="num">ROAS</th></tr></thead>`;
+  const thead = first => `<thead><tr><th>${first}</th><th class="num">広告費</th><th class="num">リード</th><th class="num">有効</th><th class="num">有効率</th><th class="num cpa">CPL</th><th class="num">有効CPL</th><th class="num">架電率</th><th class="num">接続率</th><th class="num">アポ</th><th class="num">アポ率</th><th class="num cpa">アポ単価</th><th class="num">商談</th><th class="num">商談実施率</th><th class="num">成約</th><th class="num">成約率</th><th class="num cpa">成約単価</th><th class="num">売上</th><th class="num">粗利</th><th class="num">粗利−広告費</th><th class="num">ROAS</th></tr></thead>`;
   const byCamp = camps.filter(c => !F.camp || c['訴求'] === F.camp).filter(c => !F.media || hasMedia(c['媒体'], F.media))
     .map(c => ({ c, m: metrics(L.filter(l => l['訴求'] === c['訴求']), costOf(months, c['訴求'])) })).filter(x => x.m.n || x.m.cost);
   const byMon = months.map(ym => ({ ym, m: metrics(D.leads.filter(l => l._ym === ym && (!F.camp || l['訴求'] === F.camp) && (!F.media || hasMedia(l._media, F.media))), costOf([ym], F.camp, F.media)) }));
@@ -638,14 +649,14 @@ function renderAna() {
     <div class="card kpi hl"><div class="l">粗利 − 広告費</div><div class="v" style="color:${M.profit < 0 ? '#ffb4ab' : '#b7f5c4'}">${M.cost ? yenS(M.profit) : '-'}</div><div class="s">粗利ROI ${M.cost ? (M.profit / M.cost * 100).toFixed(0) + '%' : '-'}</div></div>
     <div class="card kpi"><div class="l">初回架電までの時間</div><div class="v">${M.respMed != null ? ago(M.respMed) : '-'}</div><div class="s">中央値（受付時間内換算）</div></div>
   </div>
+  <h2>月別の成果</h2>
+  <div class="tblwrap"><table>${thead('受信月')}<tbody>${byMon.map(x => row(x.ym, x.m)).join('')}</tbody></table></div>
   <div class="grid two">
     <div class="card"><h3>ファネル</h3>${fun.map(([k, v], i) => `<div class="bar funnel"><div class="lb">${k}</div><div class="tr"><div class="fl" style="width:${v / funMax * 100}%"></div></div><div class="vl">${v}件${i ? ' <span class="sub">' + pct(v, fun[i - 1][1]) + '</span>' : ''}</div></div>`).join('')}<div class="note">右の％は1つ前の段階からの移行率。有効リード＝${esc(D.validRule.label)}</div></div>
     <div class="card"><h3>月別推移</h3><canvas id="chMon" height="200"></canvas></div>
   </div>
   <h2>訴求別の成果</h2>
   <div class="tblwrap"><table>${thead('訴求')}<tbody>${byCamp.map(x => row(`<b>${esc(x.c['表示名'] || x.c['訴求'])}</b> <span class="tag">${esc(x.c['媒体'] || '')}</span>${x.c['状態'] && x.c['状態'] !== '配信中' ? ` <span class="tag">${esc(x.c['状態'])}</span>` : ''}`, x.m)).join('')}${row('合計', M, 'class="total"')}</tbody></table></div>
-  <h2>月別の成果</h2>
-  <div class="tblwrap"><table>${thead('受信月')}<tbody>${byMon.map(x => row(x.ym, x.m)).join('')}</tbody></table></div>
   <h2>NG理由（なぜ成果にならなかったか）</h2>
   <div class="grid three">
     <div class="card"><h3>失注理由 <span class="sub sm">商談後</span></h3>${bars(lost, 'ng')}</div>
