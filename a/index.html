@@ -43,6 +43,7 @@ th{background:#fafbfc;color:var(--sub);font-weight:600;font-size:12px;position:s
 td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
 tr.click{cursor:pointer} tr.click:hover td{background:#f7f9ff}
 tr.total td{font-weight:700;background:#fafbfc}
+tr.lost td{background:#eceff1!important;color:#9aa0a6}tr.lost td b{color:#80868b}tr.lost .st,tr.lost .dst{background:#dadce0;color:#5f6368}
 tr.dup td{background:#262626!important;color:#9a9a9a}tr.dup td b{color:#bbb}tr.dup .st{background:#444;color:#ccc}
 .nh{font-size:11px;padding:0 6px;border-radius:4px;background:#fde8e6;color:#d93025;margin-left:4px}
 .tblwrap{overflow:auto;border:1px solid var(--line);border-radius:12px;max-height:70vh;background:#fff}
@@ -328,6 +329,9 @@ function render() {
 
 function stBadge(s) { return `<span class="st st-${esc(s)}">${esc(s)}</span>`; }
 
+// 行の色：重複＝黒塗り、失注・NG＝グレーアウト
+const isLost = l => l['ステータス'] === '失注' || l['商談ステータス'] === '失注' || /NG|失注/i.test(String(l['進捗_商談結果'] || ''));
+const rowCls = l => l['ステータス'] === '重複' ? 'dup' : isLost(l) ? 'lost' : '';
 function leadRows(list, cols) {
   if (!list.length) return `<div class="empty">該当するリードはありません</div>`;
   const C = {
@@ -351,7 +355,7 @@ function leadRows(list, cols) {
     sales: ['売上', l => l._won ? yen(l._sales) : ''],
   };
   cols.filter(c => c.startsWith('q:')).forEach(c => { const q = c.slice(2); C[c] = [`<span title="${esc(q)}">${esc(shortQ(q))}</span>`, l => `<span class="sm">${esc(l._ans[q] || '')}</span>`]; });
-  return `<div class="tblwrap"><table><thead><tr>${cols.map(c => `<th>${C[c][0]}</th>`).join('')}</tr></thead><tbody>${list.map(l => `<tr class="click ${l['ステータス'] === '重複' ? 'dup' : ''}" data-id="${l['リードID']}">${cols.map(c => `<td>${C[c][1](l)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+  return `<div class="tblwrap"><table><thead><tr>${cols.map(c => `<th>${C[c][0]}</th>`).join('')}</tr></thead><tbody>${list.map(l => `<tr class="click ${rowCls(l)}" data-id="${l['リードID']}">${cols.map(c => `<td>${C[c][1](l)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
 }
 
 // 進捗ビュー：左＝アポ取得進捗（架電〜アポ取得）、右＝商談進捗（アポ後）。1行で両方を追える
@@ -382,7 +386,7 @@ function progRows(list, showCamp) {
   return `<div class="tblwrap prog"><table><thead>
     <tr><th class="g lead" colspan="${lead.length}">リード</th><th class="g call" colspan="${callc.length}">アポ取得進捗</th><th class="g deal" colspan="${deal.length}">商談進捗</th></tr>
     <tr>${th(lead, '')}${th(callc, 'cl')}${th(deal, 'dl')}</tr></thead>
-    <tbody>${list.map(l => `<tr class="click ${l['ステータス'] === '重複' ? 'dup' : ''}" data-id="${l['リードID']}">${td(l, lead, '')}${td(l, callc, 'cl')}${td(l, deal, 'dl')}</tr>`).join('')}</tbody></table></div>`;
+    <tbody>${list.map(l => `<tr class="click ${rowCls(l)}" data-id="${l['リードID']}">${td(l, lead, '')}${td(l, callc, 'cl')}${td(l, deal, 'dl')}</tr>`).join('')}</tbody></table></div>`;
 }
 
 const shortQ = q => { const t = q.replace(/^Q(\d+)[.．:：、]?\s*/, 'Q$1 ').replace(/を教えてください|を教えて下さい|ですか[？?]|[は]?[？?]$/g, ''); return t.length > 14 ? t.slice(0, 14) + '…' : t; };
