@@ -51,6 +51,13 @@ tr.dup td{background:#262626!important;color:#9a9a9a}tr.dup td b{color:#bbb}tr.d
 .st-アポ獲得{background:var(--pri2);color:var(--pri)} .st-商談中{background:var(--purbg);color:var(--pur)}
 .st-成約{background:var(--grnbg);color:var(--grn)} .st-失注,.st-断り{background:var(--graybg);color:#444}
 .st-対象外,.st-重複{background:var(--graybg);color:var(--gray)}
+.prog th.g{position:sticky;top:0;text-align:center;font-size:12px;color:#fff;z-index:2}
+.prog th.g.lead{background:#5f6b7d} .prog th.g.deal{background:var(--pur)} .prog th.g.call{background:var(--pri)}
+.prog thead tr:nth-child(2) th{top:30px}
+.prog td.dl{background:#faf7ff} .prog td.cl{background:#f6f9ff} .prog td.dl.first,.prog th.dl.first{border-left:3px solid var(--pur)} .prog td.cl.first,.prog th.cl.first{border-left:3px solid var(--pri)}
+.dst{display:inline-block;padding:1px 8px;border-radius:10px;font-size:12px;font-weight:700;background:var(--graybg);color:#444}
+.dst.商談前{background:var(--pri2);color:var(--pri)} .dst.成約{background:var(--grnbg);color:var(--grn)} .dst.失注{background:var(--graybg);color:#444} .dst.ツブレ{background:var(--yelbg);color:var(--yel)} .dst.検討中,.dst.現調・見積中{background:var(--purbg);color:var(--pur)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden} .seg button{border:0;background:#fff;padding:6px 12px;font:inherit;cursor:pointer;color:var(--sub)} .seg button.on{background:var(--pri);color:#fff}
 .tag{font-size:11px;padding:0 6px;border-radius:4px;background:var(--graybg);color:var(--sub)}
 .red{color:var(--red)} .yel{color:var(--yel)} .sub{color:var(--sub)} .b{font-weight:700} .sm{font-size:12px}
 .filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
@@ -146,7 +153,7 @@ const API_URL = 'https://script.google.com/macros/s/AKfycbxPqEh5EcItMSirYVbk6rRY
 const NS = STATIC ? '_' + API_URL.replace(/\/exec$/, '').slice(-16) : '';
 const TK = { get: () => { try { return localStorage.getItem('lm_token' + NS) || ''; } catch (e) { return ''; } }, set: v => { try { v ? localStorage.setItem('lm_token' + NS, v) : localStorage.removeItem('lm_token' + NS); } catch (e) {} } };
 let D = null;               // api_bootstrap の戻り
-const UI = { page: 'home', alert: 'all', list: { q: '', st: '', camp: '', owner: '', from: '', to: '', need: false }, ana: { from: '', to: '', camp: '', media: '', basis: 'recv' }, sel: null, sort: { k: '受信日時', d: -1 } };
+const UI = { page: 'home', alert: 'all', list: { q: '', st: '', camp: '', owner: '', from: '', to: '', need: false, view: 'list', apoOnly: false }, ana: { from: '', to: '', camp: '', media: '', basis: 'recv' }, sel: null, sort: { k: '受信日時', d: -1 } };
 const $ = s => document.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const yen = n => (n == null || !isFinite(n)) ? '-' : '¥' + Math.round(n).toLocaleString();
@@ -260,7 +267,7 @@ function prep() {
     const f = /\s00:00$/.test(String(l['初回架電日時'])) || String(l['初回架電日時']).length <= 10 ? null : toD(l['初回架電日時']);
     l._resp = f && l._start ? Math.max(0, (f - l._start) / 60e3) : null;
     l._apo = !!(l['アポ日時'] || l['アポ獲得日']);
-    l._dealDone = ['現調・見積中', '検討中', '成約', '失注'].includes(l['商談ステータス']);
+    l._dealDone = ((D.dealRule && D.dealRule.count) || ['現調・見積中', '検討中', '成約', '失注']).includes(l['商談ステータス']);
     l._won = l['ステータス'] === '成約';
     l._sales = l._won ? num(l['売上']) : 0;
     l._grossEst = l._won && l['粗利'] === '';
@@ -346,6 +353,36 @@ function leadRows(list, cols) {
   return `<div class="tblwrap"><table><thead><tr>${cols.map(c => `<th>${C[c][0]}</th>`).join('')}</tr></thead><tbody>${list.map(l => `<tr class="click ${l['ステータス'] === '重複' ? 'dup' : ''}" data-id="${l['リードID']}">${cols.map(c => `<td>${C[c][1](l)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
 }
 
+// 進捗ビュー：左＝商談結果（アポ後）、右＝アポ取得までの架電。1行で両方を追える
+function progRows(list, showCamp) {
+  if (!list.length) return `<div class="empty">該当するリードはありません</div>`;
+  const lead = [['受信', l => md(l['受信日時'])], ['氏名', l => `<b>${esc(l['氏名'])}</b>${l._notHouse ? '<span class="nh">戸建て以外</span>' : ''}${l._areaOut ? '<span class="nh">エリア外</span>' : ''}`]]
+    .concat(showCamp ? [['訴求', l => `<span class="sm">${esc(campName(l['訴求']))}</span>`]] : []).concat([['電話番号', l => esc(l['電話番号'])], ['ステータス', l => stBadge(l['ステータス'])]]);
+  const deal = [
+    ['商談結果', l => l['商談ステータス'] ? `<span class="dst ${esc(l['商談ステータス'])}">${esc(l['商談ステータス'])}</span>` : (l._apo ? '' : '<span class="sub sm">―</span>')],
+    ['訪問・商談日', l => md(String(l['アポ日時'] || l['商談実施日'] || ''))],
+    ['営業担当', l => esc(l['営業担当'])],
+    ['商材', l => `<span class="sm">${esc(l['商材'])}</span>`],
+    ['売上', l => l._won ? `<b>${yen(l._sales)}</b>` : ''],
+    ['商談メモ', l => `<div class="sm" style="max-width:240px;white-space:normal">${esc(l['進捗メモ'] || '')}</div>`],
+  ];
+  const callc = [
+    ['架電', l => num(l['架電回数']) || ''],
+    ['最終結果', l => `<span class="sm">${esc(String(l['最終架電結果']).replace('/', '・'))}</span>`],
+    ['最終架電日時', l => md(String(l['最終架電日時']))],
+    ['架電者', l => esc(l['担当者'])],
+    ['アポ取得日', l => l._apo ? `<b>${md(String(l['アポ獲得日'] || ''))}</b>` : ''],
+    ['架電履歴', l => l._hist.length ? `<div class="hist">${l._hist.map(g => `<div>${md(String(g[0]))} ${esc(g[5] || g[4])}${g[3] ? `<span class="sub">（${esc(g[3])}）</span>` : ''}</div>`).join('')}</div>` : ''],
+    ['備考メモ', l => `<div class="memoCell" data-memo="${l['リードID']}" title="クリックして入力">${l['メモ'] ? esc(l['メモ']) : '<span class="sub">＋ 入力</span>'}</div>`],
+  ];
+  const th = (a, cls) => a.map((c, i) => `<th class="${cls}${i === 0 && cls ? ' first' : ''}">${c[0]}</th>`).join('');
+  const td = (l, a, cls) => a.map((c, i) => `<td class="${cls}${i === 0 && cls ? ' first' : ''}">${c[1](l)}</td>`).join('');
+  return `<div class="tblwrap prog"><table><thead>
+    <tr><th class="g lead" colspan="${lead.length}">リード</th><th class="g deal" colspan="${deal.length}">商談結果（アポ後）</th><th class="g call" colspan="${callc.length}">架電〜アポ取得</th></tr>
+    <tr>${th(lead, '')}${th(deal, 'dl')}${th(callc, 'cl')}</tr></thead>
+    <tbody>${list.map(l => `<tr class="click ${l['ステータス'] === '重複' ? 'dup' : ''}" data-id="${l['リードID']}">${td(l, lead, '')}${td(l, deal, 'dl')}${td(l, callc, 'cl')}</tr>`).join('')}</tbody></table></div>`;
+}
+
 const shortQ = q => { const t = q.replace(/^Q(\d+)[.．:：、]?\s*/, 'Q$1 ').replace(/を教えてください|を教えて下さい|ですか[？?]|[は]?[？?]$/g, ''); return t.length > 14 ? t.slice(0, 14) + '…' : t; };
 function renderHome(A) {
   const L = D.leads, ym = today().slice(0, 7), t0 = today();
@@ -380,7 +417,7 @@ function renderList() {
   const base = L.filter(l => (!F.camp || l['訴求'] === F.camp) && (!F.owner || l['担当者'] === F.owner) && (!F.from || l._ym >= F.from) && (!F.to || l._ym <= F.to)
     && (!F.q || (l['氏名'] + l['電話番号'] + l['都道府県'] + l['メモ']).replace(/[-\s]/g, '').includes(F.q.replace(/[-\s]/g, ''))));
   const cnt = {}; base.forEach(l => cnt[l['ステータス']] = (cnt[l['ステータス']] || 0) + 1);
-  let list = base.filter(l => !F.st || l['ステータス'] === F.st);
+  let list = base.filter(l => (!F.st || l['ステータス'] === F.st) && (!F.apoOnly || l._apo));
   const k = UI.sort.k, d = UI.sort.d;
   list.sort((a, b) => String(a[k] || '').localeCompare(String(b[k] || '')) * d);
   // 訴求タブ（未対応・期限切れの件数を赤バッジで）
@@ -410,14 +447,18 @@ function renderList() {
     <select id="fto"><option value="">指定なし</option>${mons.map(m => `<option ${F.to === m ? 'selected' : ''}>${m}</option>`).join('')}</select>
     <select id="fsort">${[['受信日時', '受信日時'], ['最終架電日時', '最終架電日時'], ['次回架電予定', '次回架電予定'], ['アポ日時', 'アポ日時'], ['更新日時', '更新日時']].map(([v, t]) => `<option value="${v}" ${k === v ? 'selected' : ''}>${t}順</option>`).join('')}</select>
     <button class="btn sm" id="fdir">${d < 0 ? '新しい順' : '古い順'}</button>
-    <span class="sub sm" style="margin-left:auto">${list.length}件</span>
+    <label class="sm" style="display:inline-flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="fapo" ${F.apoOnly ? 'checked' : ''}>アポ取得したリードだけ</label>
+    <span class="seg" style="margin-left:auto"><button data-view="list" class="${F.view !== 'prog' ? 'on' : ''}">一覧</button><button data-view="prog" class="${F.view === 'prog' ? 'on' : ''}" title="左＝商談結果、右＝アポ取得までの架電">進捗（商談｜架電）</button></span>
+    <span class="sub sm">${list.length}件</span>
   </div>
   <div class="chips" style="margin-bottom:12px"><span class="chip ${!F.st ? 'on' : ''}" data-st="">すべて ${base.length}</span>${ST_ORDER.map(s => `<span class="chip ${F.st === s ? 'on' : ''}" data-st="${s}">${s} ${cnt[s] || 0}</span>`).join('')}</div>
-  ${leadRows(list.slice(0, 500), F.camp ? ['recv', 'wait', 'name', 'pref', 'tel', ...qcols, 'st', 'cnt', 'last', 'lastAt', 'hist', 'memo', 'next', 'apo', 'deal', 'sales', 'owner'] : ['recv', 'wait', 'camp', 'name', 'pref', 'tel', 'st', 'cnt', 'last', 'lastAt', 'hist', 'memo', 'next', 'apo', 'deal', 'sales', 'owner'])}
+  ${F.view === 'prog' ? progRows(list.slice(0, 500), !F.camp) : leadRows(list.slice(0, 500), F.camp ? ['recv', 'wait', 'name', 'pref', 'tel', ...qcols, 'st', 'cnt', 'last', 'lastAt', 'hist', 'memo', 'next', 'apo', 'deal', 'sales', 'owner'] : ['recv', 'wait', 'camp', 'name', 'pref', 'tel', 'st', 'cnt', 'last', 'lastAt', 'hist', 'memo', 'next', 'apo', 'deal', 'sales', 'owner'])}
   ${list.length > 500 ? '<div class="note">先頭500件を表示しています。絞り込んでください。</div>' : ''}`;
   const set = (id, key, ev = 'change') => $(id).addEventListener(ev, e => { F[key] = e.target.value; renderList(); if (id === '#fq') { $('#fq').focus(); $('#fq').setSelectionRange(99, 99); } });
   set('#fq', 'q', 'input'); set('#fowner', 'owner'); set('#ffrom', 'from'); set('#fto', 'to');
   $('#fsort').onchange = e => { UI.sort.k = e.target.value; renderList(); };
+  $('#fapo').onchange = e => { F.apoOnly = e.target.checked; renderList(); };
+  document.querySelectorAll('#p-list .seg button').forEach(b => b.onclick = () => { F.view = b.dataset.view; renderList(); });
   $('#fdir').onclick = () => { UI.sort.d *= -1; renderList(); };
   if (F.camp) {
     $('#toAna').onclick = e => { e.preventDefault(); UI.ana.camp = F.camp; UI.page = 'ana'; render(); };
@@ -520,7 +561,7 @@ function renderAna() {
     const qs = {}; valid.forEach(l => Object.entries(l._ans).forEach(([q, a]) => { const o = (qs[q] = qs[q] || {})[a] = (qs[q] || {})[a] || { n: 0, apo: 0, won: 0 }; o.n++; if (l._apo) o.apo++; if (l._won) o.won++; }));
     ansHtml = Object.entries(qs).map(([q, as]) => `<div style="margin-bottom:14px"><div class="b sm" style="margin-bottom:4px">${esc(q)}</div><table><thead><tr><th>回答</th><th class="num">有効リード</th><th class="num">アポ</th><th class="num">アポ率</th><th class="num">成約</th></tr></thead><tbody>${Object.entries(as).sort((a, b) => b[1].n - a[1].n).map(([a, o]) => `<tr><td>${esc(a)}</td><td class="num">${o.n}</td><td class="num">${o.apo}</td><td class="num b">${pct(o.apo, o.n)}</td><td class="num">${o.won}</td></tr>`).join('')}</tbody></table></div>`).join('') || '<div class="sub sm">回答データがありません</div>';
   }
-  const fun = [['リード', M.n], ['有効リード', M.valid], ['本人と接続', M.validConn], ['アポ', M.apo], ['商談実施', M.deal], ['成約', M.won]];
+  const fun = [['リード', M.n], ['有効リード', M.valid], ['本人と接続', M.validConn], ['アポ', M.apo], [(D.dealRule && D.dealRule.label) || '商談実施', M.deal], ['成約', M.won]];
   const funMax = Math.max(1, M.n);
 
   $('#p-ana').innerHTML = `
