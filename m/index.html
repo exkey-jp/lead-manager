@@ -43,6 +43,7 @@ th{background:#fafbfc;color:var(--sub);font-weight:600;font-size:12px;position:s
 td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
 tr.click{cursor:pointer} tr.click:hover td{background:#f7f9ff}
 tr.total td{font-weight:700;background:#fafbfc}
+tr.lost td{background:#eceff1!important;color:#9aa0a6}tr.lost td b{color:#80868b}tr.lost .st,tr.lost .dst{background:#dadce0;color:#5f6368}
 tr.dup td{background:#262626!important;color:#9a9a9a}tr.dup td b{color:#bbb}tr.dup .st{background:#444;color:#ccc}
 .nh{font-size:11px;padding:0 6px;border-radius:4px;background:#fde8e6;color:#d93025;margin-left:4px}
 .tblwrap{overflow:auto;border:1px solid var(--line);border-radius:12px;max-height:70vh;background:#fff}
@@ -328,6 +329,9 @@ function render() {
 
 function stBadge(s) { return `<span class="st st-${esc(s)}">${esc(s)}</span>`; }
 
+// 行の色：重複＝黒塗り、失注・NG・ツブレ・断り・対象外＝グレーアウト
+const isLost = l => ['失注', '断り', '対象外'].includes(l['ステータス']) || ['失注', 'ツブレ'].includes(l['商談ステータス']) || /NG|失注|ツブレ/i.test(String(l['進捗_商談結果'] || ''));
+const rowCls = l => l['ステータス'] === '重複' ? 'dup' : isLost(l) ? 'lost' : '';
 function leadRows(list, cols) {
   if (!list.length) return `<div class="empty">該当するリードはありません</div>`;
   const C = {
@@ -346,11 +350,12 @@ function leadRows(list, cols) {
     next: ['次回架電', l => { const d = toD(l['次回架電予定']); return d ? `<span class="${d < Date.now() ? 'red b' : ''}">${md(l['次回架電予定'])}</span>` : ''; }],
     apo: ['アポ日時', l => md(l['アポ日時'])],
     deal: ['商談', l => esc(l['商談ステータス'])],
+    dres: ['商談結果', l => `<span class="sm">${esc(l['進捗_商談結果'] || '')}</span>`], // 進捗表の商談結果（アームズ様）
     owner: ['担当', l => esc(l['担当者'])],
     sales: ['売上', l => l._won ? yen(l._sales) : ''],
   };
   cols.filter(c => c.startsWith('q:')).forEach(c => { const q = c.slice(2); C[c] = [`<span title="${esc(q)}">${esc(shortQ(q))}</span>`, l => `<span class="sm">${esc(l._ans[q] || '')}</span>`]; });
-  return `<div class="tblwrap"><table><thead><tr>${cols.map(c => `<th>${C[c][0]}</th>`).join('')}</tr></thead><tbody>${list.map(l => `<tr class="click ${l['ステータス'] === '重複' ? 'dup' : ''}" data-id="${l['リードID']}">${cols.map(c => `<td>${C[c][1](l)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+  return `<div class="tblwrap"><table><thead><tr>${cols.map(c => `<th>${C[c][0]}</th>`).join('')}</tr></thead><tbody>${list.map(l => `<tr class="click ${rowCls(l)}" data-id="${l['リードID']}">${cols.map(c => `<td>${C[c][1](l)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
 }
 
 // 進捗ビュー：左＝アポ取得進捗（架電〜アポ取得）、右＝商談進捗（アポ後）。1行で両方を追える
@@ -359,13 +364,14 @@ function progRows(list, showCamp) {
   const lead = [['受信', l => md(l['受信日時'])], ['氏名', l => `<b>${esc(l['氏名'])}</b>${l._notHouse ? '<span class="nh">戸建て以外</span>' : ''}${l._areaOut ? '<span class="nh">エリア外</span>' : ''}`]]
     .concat(showCamp ? [['訴求', l => `<span class="sm">${esc(campName(l['訴求']))}</span>`]] : []).concat([['電話番号', l => esc(l['電話番号'])], ['ステータス', l => stBadge(l['ステータス'])]]);
   const deal = [
-    ['商談結果', l => l['商談ステータス'] ? `<span class="dst ${esc(l['商談ステータス'])}">${esc(l['商談ステータス'])}</span>` : (l._apo ? '' : '<span class="sub sm">―</span>')],
+    ['商談', l => l['商談ステータス'] ? `<span class="dst ${esc(l['商談ステータス'])}">${esc(l['商談ステータス'])}</span>` : (l._apo ? '' : '<span class="sub sm">―</span>')],
+  ].concat(D.leads.some(l => l['進捗_商談結果']) ? [['商談結果', l => `<span class="sm">${esc(l['進捗_商談結果'] || '')}</span>`]] : []).concat([
     ['訪問・商談日', l => md(String(l['アポ日時'] || l['商談実施日'] || ''))],
     ['営業担当', l => esc(l['営業担当'])],
     ['商材', l => `<span class="sm">${esc(l['商材'])}</span>`],
     ['売上', l => l._won ? `<b>${yen(l._sales)}</b>` : ''],
     ['商談メモ', l => `<div class="sm" style="max-width:240px;white-space:normal">${esc(l['進捗メモ'] || '')}</div>`],
-  ];
+  ]);
   const callc = [
     ['架電', l => num(l['架電回数']) || ''],
     ['最終結果', l => `<span class="sm">${esc(String(l['最終架電結果']).replace('/', '・'))}</span>`],
@@ -380,7 +386,7 @@ function progRows(list, showCamp) {
   return `<div class="tblwrap prog"><table><thead>
     <tr><th class="g lead" colspan="${lead.length}">リード</th><th class="g call" colspan="${callc.length}">アポ取得進捗</th><th class="g deal" colspan="${deal.length}">商談進捗</th></tr>
     <tr>${th(lead, '')}${th(callc, 'cl')}${th(deal, 'dl')}</tr></thead>
-    <tbody>${list.map(l => `<tr class="click ${l['ステータス'] === '重複' ? 'dup' : ''}" data-id="${l['リードID']}">${td(l, lead, '')}${td(l, callc, 'cl')}${td(l, deal, 'dl')}</tr>`).join('')}</tbody></table></div>`;
+    <tbody>${list.map(l => `<tr class="click ${rowCls(l)}" data-id="${l['リードID']}">${td(l, lead, '')}${td(l, callc, 'cl')}${td(l, deal, 'dl')}</tr>`).join('')}</tbody></table></div>`;
 }
 
 const shortQ = q => { const t = q.replace(/^Q(\d+)[.．:：、]?\s*/, 'Q$1 ').replace(/を教えてください|を教えて下さい|ですか[？?]|[は]?[？?]$/g, ''); return t.length > 14 ? t.slice(0, 14) + '…' : t; };
@@ -417,6 +423,7 @@ function renderList() {
   const base = L.filter(l => (!F.camp || l['訴求'] === F.camp) && (!F.owner || l['担当者'] === F.owner) && (!F.from || l._ym >= F.from) && (!F.to || l._ym <= F.to)
     && (!F.q || (l['氏名'] + l['電話番号'] + l['都道府県'] + l['メモ']).replace(/[-\s]/g, '').includes(F.q.replace(/[-\s]/g, ''))));
   const cnt = {}; base.forEach(l => cnt[l['ステータス']] = (cnt[l['ステータス']] || 0) + 1);
+  const DRES = L.some(l => l['進捗_商談結果']) ? ['dres'] : []; // 進捗表を使う会社だけ「商談結果」列を出す
   let list = base.filter(l => (!F.st || l['ステータス'] === F.st) && (!F.apoOnly || l._apo));
   const k = UI.sort.k, d = UI.sort.d;
   list.sort((a, b) => String(a[k] || '').localeCompare(String(b[k] || '')) * d);
@@ -452,7 +459,7 @@ function renderList() {
     <span class="sub sm">${list.length}件</span>
   </div>
   <div class="chips" style="margin-bottom:12px"><span class="chip ${!F.st ? 'on' : ''}" data-st="">すべて ${base.length}</span>${ST_ORDER.map(s => `<span class="chip ${F.st === s ? 'on' : ''}" data-st="${s}">${s} ${cnt[s] || 0}</span>`).join('')}</div>
-  ${F.view === 'prog' ? progRows(list.slice(0, 500), !F.camp) : leadRows(list.slice(0, 500), F.camp ? ['recv', 'wait', 'name', 'pref', 'tel', ...qcols, 'st', 'cnt', 'last', 'lastAt', 'hist', 'memo', 'next', 'apo', 'deal', 'sales', 'owner'] : ['recv', 'wait', 'camp', 'name', 'pref', 'tel', 'st', 'cnt', 'last', 'lastAt', 'hist', 'memo', 'next', 'apo', 'deal', 'sales', 'owner'])}
+  ${F.view === 'prog' ? progRows(list.slice(0, 500), !F.camp) : leadRows(list.slice(0, 500), F.camp ? ['recv', 'wait', 'name', 'pref', 'tel', ...qcols, 'st', 'cnt', 'last', 'lastAt', 'hist', 'memo', 'next', 'apo', 'deal', ...DRES, 'sales', 'owner'] : ['recv', 'wait', 'camp', 'name', 'pref', 'tel', 'st', 'cnt', 'last', 'lastAt', 'hist', 'memo', 'next', 'apo', 'deal', ...DRES, 'sales', 'owner'])}
   ${list.length > 500 ? '<div class="note">先頭500件を表示しています。絞り込んでください。</div>' : ''}`;
   const set = (id, key, ev = 'change') => $(id).addEventListener(ev, e => { F[key] = e.target.value; renderList(); if (id === '#fq') { $('#fq').focus(); $('#fq').setSelectionRange(99, 99); } });
   set('#fq', 'q', 'input'); set('#fowner', 'owner'); set('#ffrom', 'from'); set('#fto', 'to');
@@ -481,8 +488,10 @@ function editTalk(camp, box, after) {
 const ST_ORDER = ['未対応', '追客中', 'アポ獲得', '商談中', '成約', '失注', '断り', '対象外', '重複'];
 
 // ---------------- 集計 ----------------
+// 訴求の媒体は「Meta・Google・Yahoo」のように複数のことがある
+const hasMedia = (v, m) => String(v || '').split(/[・,、\/]/).map(x => x.trim()).includes(m);
 function costOf(months, camp, media) {
-  return D.adcost.filter(c => months.includes(c.ym) && (!camp || c.camp === camp) && (!media || (CAMP(c.camp)['媒体'] || '') === media)).reduce((s, c) => s + c.cost, 0);
+  return D.adcost.filter(c => months.includes(c.ym) && (!camp || c.camp === camp) && (!media || hasMedia(CAMP(c.camp)['媒体'], media))).reduce((s, c) => s + c.cost, 0);
 }
 function metrics(L, cost) {
   const m = { n: L.length, dup: 0, invalid: 0, called: 0, conn: 0, apo: 0, deal: 0, won: 0, lost: 0, cancel: 0, decline: 0, sales: 0, gross: 0, grossEst: false, resp: [], cost: cost || 0, validConn: 0, valid: 0 };
@@ -519,8 +528,8 @@ function renderAna() {
   const allMons = [...new Set(D.leads.map(l => l._ym).concat(D.adcost.map(c => c.ym)))].sort();
   const months = monthsBetween(F.from, F.to);
   const camps = D.campaigns.slice().sort((a, b) => num(a['並び順']) - num(b['並び順']));
-  const medias = [...new Set(camps.map(c => c['媒体']).filter(Boolean))];
-  const inF = l => months.includes(l._ym) && (!F.camp || l['訴求'] === F.camp) && (!F.media || l._media === F.media);
+  const medias = [...new Set(camps.flatMap(c => String(c['媒体'] || '').split(/[・,、\/]/).map(x => x.trim())).filter(Boolean))];
+  const inF = l => months.includes(l._ym) && (!F.camp || l['訴求'] === F.camp) && (!F.media || hasMedia(l._media, F.media));
   const L = D.leads.filter(inF);
   const M = metrics(L, costOf(months, F.camp, F.media));
   const row = (label, m, extra = '') => `<tr ${extra}><td>${label}</td>
@@ -531,9 +540,9 @@ function renderAna() {
     <td class="num b">${m.won}</td><td class="num">${pct(m.won, m.deal)}</td><td class="num">${yen(div(m.cost, m.won))}</td>
     <td class="num b">${yen(m.sales)}</td><td class="num">${yen(m.gross)}${m.grossEst ? '<span class="sub">*</span>' : ''}</td><td class="num ${m.profit < 0 ? 'red' : ''}">${m.cost ? yen(m.profit) : '-'}</td><td class="num">${m.cost ? (m.sales / m.cost * 100).toFixed(0) + '%' : '-'}</td></tr>`;
   const thead = first => `<thead><tr><th>${first}</th><th class="num">広告費</th><th class="num">リード</th><th class="num">有効</th><th class="num">有効率</th><th class="num">CPL</th><th class="num">有効CPL</th><th class="num">架電率</th><th class="num">接続率</th><th class="num">アポ</th><th class="num">アポ率</th><th class="num">アポ単価</th><th class="num">商談</th><th class="num">商談実施率</th><th class="num">成約</th><th class="num">成約率</th><th class="num">成約単価</th><th class="num">売上</th><th class="num">粗利</th><th class="num">粗利−広告費</th><th class="num">ROAS</th></tr></thead>`;
-  const byCamp = camps.filter(c => !F.camp || c['訴求'] === F.camp).filter(c => !F.media || c['媒体'] === F.media)
+  const byCamp = camps.filter(c => !F.camp || c['訴求'] === F.camp).filter(c => !F.media || hasMedia(c['媒体'], F.media))
     .map(c => ({ c, m: metrics(L.filter(l => l['訴求'] === c['訴求']), costOf(months, c['訴求'])) })).filter(x => x.m.n || x.m.cost);
-  const byMon = months.map(ym => ({ ym, m: metrics(D.leads.filter(l => l._ym === ym && (!F.camp || l['訴求'] === F.camp) && (!F.media || l._media === F.media)), costOf([ym], F.camp, F.media)) }));
+  const byMon = months.map(ym => ({ ym, m: metrics(D.leads.filter(l => l._ym === ym && (!F.camp || l['訴求'] === F.camp) && (!F.media || hasMedia(l._media, F.media))), costOf([ym], F.camp, F.media)) }));
   // 架電スピード別
   const SP = [['5分以内', 0, 5], ['5〜30分', 5, 30], ['30分〜1時間', 30, 60], ['1〜3時間', 60, 180], ['3時間〜当日', 180, 1440], ['翌日以降', 1440, 1e9]];
   const valid = L.filter(l => l._valid);
