@@ -488,8 +488,10 @@ function editTalk(camp, box, after) {
 const ST_ORDER = ['未対応', '追客中', 'アポ獲得', '商談中', '成約', '失注', '断り', '対象外', '重複'];
 
 // ---------------- 集計 ----------------
+// 訴求の媒体は「Meta・Google・Yahoo」のように複数のことがある
+const hasMedia = (v, m) => String(v || '').split(/[・,、\/]/).map(x => x.trim()).includes(m);
 function costOf(months, camp, media) {
-  return D.adcost.filter(c => months.includes(c.ym) && (!camp || c.camp === camp) && (!media || (CAMP(c.camp)['媒体'] || '') === media)).reduce((s, c) => s + c.cost, 0);
+  return D.adcost.filter(c => months.includes(c.ym) && (!camp || c.camp === camp) && (!media || hasMedia(CAMP(c.camp)['媒体'], media))).reduce((s, c) => s + c.cost, 0);
 }
 function metrics(L, cost) {
   const m = { n: L.length, dup: 0, invalid: 0, called: 0, conn: 0, apo: 0, deal: 0, won: 0, lost: 0, cancel: 0, decline: 0, sales: 0, gross: 0, grossEst: false, resp: [], cost: cost || 0, validConn: 0, valid: 0 };
@@ -526,8 +528,8 @@ function renderAna() {
   const allMons = [...new Set(D.leads.map(l => l._ym).concat(D.adcost.map(c => c.ym)))].sort();
   const months = monthsBetween(F.from, F.to);
   const camps = D.campaigns.slice().sort((a, b) => num(a['並び順']) - num(b['並び順']));
-  const medias = [...new Set(camps.map(c => c['媒体']).filter(Boolean))];
-  const inF = l => months.includes(l._ym) && (!F.camp || l['訴求'] === F.camp) && (!F.media || l._media === F.media);
+  const medias = [...new Set(camps.flatMap(c => String(c['媒体'] || '').split(/[・,、\/]/).map(x => x.trim())).filter(Boolean))];
+  const inF = l => months.includes(l._ym) && (!F.camp || l['訴求'] === F.camp) && (!F.media || hasMedia(l._media, F.media));
   const L = D.leads.filter(inF);
   const M = metrics(L, costOf(months, F.camp, F.media));
   const row = (label, m, extra = '') => `<tr ${extra}><td>${label}</td>
@@ -538,9 +540,9 @@ function renderAna() {
     <td class="num b">${m.won}</td><td class="num">${pct(m.won, m.deal)}</td><td class="num">${yen(div(m.cost, m.won))}</td>
     <td class="num b">${yen(m.sales)}</td><td class="num">${yen(m.gross)}${m.grossEst ? '<span class="sub">*</span>' : ''}</td><td class="num ${m.profit < 0 ? 'red' : ''}">${m.cost ? yen(m.profit) : '-'}</td><td class="num">${m.cost ? (m.sales / m.cost * 100).toFixed(0) + '%' : '-'}</td></tr>`;
   const thead = first => `<thead><tr><th>${first}</th><th class="num">広告費</th><th class="num">リード</th><th class="num">有効</th><th class="num">有効率</th><th class="num">CPL</th><th class="num">有効CPL</th><th class="num">架電率</th><th class="num">接続率</th><th class="num">アポ</th><th class="num">アポ率</th><th class="num">アポ単価</th><th class="num">商談</th><th class="num">商談実施率</th><th class="num">成約</th><th class="num">成約率</th><th class="num">成約単価</th><th class="num">売上</th><th class="num">粗利</th><th class="num">粗利−広告費</th><th class="num">ROAS</th></tr></thead>`;
-  const byCamp = camps.filter(c => !F.camp || c['訴求'] === F.camp).filter(c => !F.media || c['媒体'] === F.media)
+  const byCamp = camps.filter(c => !F.camp || c['訴求'] === F.camp).filter(c => !F.media || hasMedia(c['媒体'], F.media))
     .map(c => ({ c, m: metrics(L.filter(l => l['訴求'] === c['訴求']), costOf(months, c['訴求'])) })).filter(x => x.m.n || x.m.cost);
-  const byMon = months.map(ym => ({ ym, m: metrics(D.leads.filter(l => l._ym === ym && (!F.camp || l['訴求'] === F.camp) && (!F.media || l._media === F.media)), costOf([ym], F.camp, F.media)) }));
+  const byMon = months.map(ym => ({ ym, m: metrics(D.leads.filter(l => l._ym === ym && (!F.camp || l['訴求'] === F.camp) && (!F.media || hasMedia(l._media, F.media))), costOf([ym], F.camp, F.media)) }));
   // 架電スピード別
   const SP = [['5分以内', 0, 5], ['5〜30分', 5, 30], ['30分〜1時間', 30, 60], ['1〜3時間', 60, 180], ['3時間〜当日', 180, 1440], ['翌日以降', 1440, 1e9]];
   const valid = L.filter(l => l._valid);
