@@ -66,6 +66,9 @@ select,input,textarea{font:inherit;border:1px solid var(--line);border-radius:8p
 textarea{width:100%;min-height:60px}
 .chips{display:flex;flex-wrap:wrap;gap:6px}
 .chip{border:1px solid var(--line);border-radius:16px;padding:3px 10px;cursor:pointer;background:#fff;font-size:12px}
+.lwrap{display:flex;gap:12px;align-items:flex-start}.lmain{flex:1;min-width:0}
+.stree{flex:0 0 auto;display:flex;flex-direction:column;align-items:flex-start;gap:3px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 12px;position:sticky;top:68px;max-height:calc(100vh - 90px);overflow:auto}
+@media(max-width:900px){.lwrap{flex-direction:column}.stree{position:static;max-height:none}}.stree .chip b{font-variant-numeric:tabular-nums}
 .chip.on{background:var(--ink);color:#fff;border-color:var(--ink)}
 .kpis{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
 .kpi .l{color:var(--sub);font-size:12px}
@@ -182,9 +185,20 @@ function call(fn, ...args) {
   return new Promise((ok, ng) => google.script.run.withSuccessHandler(ok).withFailureHandler(e => { toast('エラー：' + (e.message || e)); ng(e); }).api_call(KEY, fn, args));
 }
 // Cookie を送らない（複数アカウントでログインしていても Google のエラーにならない）
-function api(body) {
-  return fetch(API_URL, { method: 'POST', body: JSON.stringify(body), credentials: 'omit', redirect: 'follow' })
-    .then(r => r.json()).catch(e => ({ ok: false, error: '通信できませんでした。電波の良い場所でもう一度お試しください' }));
+// 失敗したときは原因（HTTPの状態・応答の先頭・エラー内容）を画面に出し、1回だけ自動で再試行する
+async function api(body, retry = 1) {
+  let stage = '送信', status = '', head = '';
+  try {
+    const r = await fetch(API_URL, { method: 'POST', body: JSON.stringify(body), credentials: 'omit', redirect: 'follow' });
+    status = r.status; stage = '受信';
+    const t = await r.text(); head = t.slice(0, 120).replace(/\s+/g, ' '); stage = '解析';
+    return JSON.parse(t);
+  } catch (e) {
+    if (retry > 0) { await new Promise(ok => setTimeout(ok, 1500)); return api(body, retry - 1); }
+    const why = `${stage}で失敗${status ? '（HTTP ' + status + '）' : ''}：${e && e.message ? e.message : e}${head ? ' ／応答：' + head : ''}`;
+    console.error('api', why);
+    return { ok: false, error: '通信できませんでした。もう一度お試しください。［詳細］' + why };
+  }
 }
 function showLogin(msg) {
   const el = $('#loading'); el.style.display = 'flex';
@@ -269,7 +283,7 @@ function prep() {
     l._resp = f && l._start ? Math.max(0, (f - l._start) / 60e3) : null;
     l._apo = !!(l['アポ日時'] || l['アポ獲得日']);
     l._dealDone = ((D.dealRule && D.dealRule.count) || ['現調・見積中', '検討中', '成約', '失注']).includes(l['商談ステータス']);
-    l._won = l['ステータス'] === '成約';
+    l._won = l['ステータス'] === '成約' || l['商談ステータス'] === '成約';
     l._sales = l._won ? num(l['売上']) : 0;
     l._grossEst = l._won && l['粗利'] === '';
     l._gross = l._won ? (l['粗利'] !== '' ? num(l['粗利']) : l._sales * num(S['粗利率の初期値(%)']) / 100) : 0;
@@ -424,7 +438,9 @@ function renderList() {
     && (!F.q || (l['氏名'] + l['電話番号'] + l['都道府県'] + l['メモ']).replace(/[-\s]/g, '').includes(F.q.replace(/[-\s]/g, ''))));
   const cnt = {}; base.forEach(l => cnt[l['ステータス']] = (cnt[l['ステータス']] || 0) + 1);
   const DRES = L.some(l => l['進捗_商談結果']) ? ['dres'] : []; // 進捗表を使う会社だけ「商談結果」列を出す
-  let list = base.filter(l => (!F.st || l['ステータス'] === F.st) && (!F.apoOnly || l._apo));
+  const TREE = statusTree(), node = TREE.find(n => n.k === F.st);
+  if (F.st && !node) F.st = '';
+  let list = base.filter(l => (!node || node.f(l)) && (!F.apoOnly || l._apo));
   const k = UI.sort.k, d = UI.sort.d;
   list.sort((a, b) => String(a[k] || '').localeCompare(String(b[k] || '')) * d);
   // 訴求タブ（未対応・期限切れの件数を赤バッジで）
@@ -458,9 +474,9 @@ function renderList() {
     <span class="seg" style="margin-left:auto"><button data-view="list" class="${F.view !== 'prog' ? 'on' : ''}">一覧</button><button data-view="prog" class="${F.view === 'prog' ? 'on' : ''}" title="左＝アポ取得進捗（架電〜アポ取得）、右＝商談進捗（アポ後）">進捗（アポ取得｜商談）</button></span>
     <span class="sub sm">${list.length}件</span>
   </div>
-  <div class="chips" style="margin-bottom:12px"><span class="chip ${!F.st ? 'on' : ''}" data-st="">すべて ${base.length}</span>${ST_ORDER.map(s => `<span class="chip ${F.st === s ? 'on' : ''}" data-st="${s}">${s} ${cnt[s] || 0}</span>`).join('')}</div>
-  ${F.view === 'prog' ? progRows(list.slice(0, 500), !F.camp) : leadRows(list.slice(0, 500), F.camp ? ['recv', 'wait', 'name', 'pref', 'tel', ...qcols, 'st', 'cnt', 'last', 'lastAt', 'hist', 'memo', 'next', 'apo', 'deal', ...DRES, 'sales', 'owner'] : ['recv', 'wait', 'camp', 'name', 'pref', 'tel', 'st', 'cnt', 'last', 'lastAt', 'hist', 'memo', 'next', 'apo', 'deal', ...DRES, 'sales', 'owner'])}
-  ${list.length > 500 ? '<div class="note">先頭500件を表示しています。絞り込んでください。</div>' : ''}`;
+  <div class="lwrap"><div class="stree">${TREE.map(n => `<span class="chip ${(F.st || 'all') === n.k ? 'on' : ''}" data-st="${n.k === 'all' ? '' : n.k}" style="margin-left:${n.d * 22}px">${n.d ? '<span class="sub">∟</span> ' : ''}${esc(n.t)} <b>${base.filter(n.f).length}</b>${n.m ? ` <span class="sub">（${n.m}）</span>` : ''}</span>`).join('')}</div>
+  <div class="lmain">${F.view === 'prog' ? progRows(list.slice(0, 500), !F.camp) : leadRows(list.slice(0, 500), F.camp ? ['recv', 'wait', 'name', 'pref', 'tel', ...qcols, 'st', 'cnt', 'last', 'lastAt', 'hist', 'memo', 'next', 'apo', 'deal', ...DRES, 'sales', 'owner'] : ['recv', 'wait', 'camp', 'name', 'pref', 'tel', 'st', 'cnt', 'last', 'lastAt', 'hist', 'memo', 'next', 'apo', 'deal', ...DRES, 'sales', 'owner'])}
+  ${list.length > 500 ? '<div class="note">先頭500件を表示しています。絞り込んでください。</div>' : ''}</div></div>`;
   const set = (id, key, ev = 'change') => $(id).addEventListener(ev, e => { F[key] = e.target.value; renderList(); if (id === '#fq') { $('#fq').focus(); $('#fq').setSelectionRange(99, 99); } });
   set('#fq', 'q', 'input'); set('#fowner', 'owner'); set('#ffrom', 'from'); set('#fto', 'to');
   $('#fsort').onchange = e => { UI.sort.k = e.target.value; renderList(); };
@@ -486,6 +502,39 @@ function editTalk(camp, box, after) {
   };
 }
 const ST_ORDER = ['未対応', '追客中', 'アポ獲得', '商談中', '成約', '失注', '断り', '対象外', '重複'];
+// ステータスの階層（全て → 無効／有効 → 追客中／アポ → 初訪NG／商談 → 成約／失注／検討 → ランク）
+// 無効＝持ち家戸建て以外・エリア外・重複・対象外（アポを取ったリードは有効に数える）
+// 商談の結果は進捗表の商談結果（O列）。進捗表がない会社・行は商談ステータスで判定
+const dealRes = l => {
+  const s = String(l['進捗_商談結果'] || '');
+  if (s) return /契約|成約/.test(s) ? '成約' : /NG|失注|キャンセル/i.test(s) ? '失注' : /検討/.test(s) ? '検討' : '';
+  const d = l['商談ステータス'];
+  return d === '成約' ? '成約' : d === '失注' ? '失注' : ['検討中', '現調・見積中'].includes(d) ? '検討' : '';
+};
+const rankOf = l => { const r = String(l['進捗_ランク'] || '').toUpperCase().match(/[ABC]/); return r ? r[0] : ''; };
+const isInvalid = l => !l._apo && (l._notHouse || l._areaOut || ['重複', '対象外'].includes(l['ステータス']));
+function statusTree() {
+  const val = l => !isInvalid(l), fol = l => val(l) && !l._apo, dl = l => l._apo && !!dealRes(l), cons = l => l._apo && dealRes(l) === '検討';
+  return [
+    { k: 'all', t: '全て', d: 0, f: l => true },
+    { k: 'inv', t: '無効', d: 1, m: '×', f: isInvalid },
+    { k: 'val', t: '有効', d: 1, f: val },
+    { k: 'fol', t: '追客中', d: 2, m: '×', f: fol },
+    { k: 'fol_new', t: '未対応', d: 3, f: l => fol(l) && l['ステータス'] === '未対応' },
+    { k: 'fol_call', t: '架電中', d: 3, f: l => fol(l) && l['ステータス'] === '追客中' },
+    { k: 'fol_dec', t: '断り', d: 3, f: l => fol(l) && l['ステータス'] === '断り' },
+    { k: 'apo', t: 'アポ', d: 2, f: l => l._apo },
+    { k: 'fng', t: '初訪NG', d: 3, f: l => l._apo && !dealRes(l) },
+    { k: 'deal', t: '商談', d: 3, f: dl },
+    { k: 'won', t: '成約', d: 4, m: '◯', f: l => l._apo && dealRes(l) === '成約' },
+    { k: 'lost', t: '失注', d: 4, m: '×', f: l => l._apo && dealRes(l) === '失注' },
+    { k: 'cons', t: '検討', d: 4, f: cons },
+    { k: 'rA', t: 'ランクA', d: 5, f: l => cons(l) && rankOf(l) === 'A' },
+    { k: 'rB', t: 'ランクB', d: 5, f: l => cons(l) && rankOf(l) === 'B' },
+    { k: 'rC', t: 'ランクC', d: 5, f: l => cons(l) && rankOf(l) === 'C' },
+    { k: 'rN', t: 'ランク未設定', d: 5, f: l => cons(l) && !rankOf(l) },
+  ];
+}
 
 // ---------------- 集計 ----------------
 // 訴求の媒体は「Meta・Google・Yahoo」のように複数のことがある
@@ -508,7 +557,7 @@ function metrics(L, cost) {
     if (l._dealDone) m.deal++;
     if (l['商談ステータス'] === 'ツブレ') m.cancel++;
     if (l._won) { m.won++; m.sales += l._sales; m.gross += l._gross; if (l._grossEst) m.grossEst = true; }
-    if (s === '失注') m.lost++;
+    if (s === '失注' || l['商談ステータス'] === '失注') m.lost++;
     if (l._resp != null) m.resp.push(l._resp);
   });
   // m.valid は l._valid の件数（会社ごとの定義）
