@@ -329,8 +329,8 @@ function render() {
 
 function stBadge(s) { return `<span class="st st-${esc(s)}">${esc(s)}</span>`; }
 
-// 行の色：重複＝黒塗り、失注・NG＝グレーアウト
-const isLost = l => l['ステータス'] === '失注' || l['商談ステータス'] === '失注' || /NG|失注/i.test(String(l['進捗_商談結果'] || ''));
+// 行の色：重複＝黒塗り、失注・NG・ツブレ・断り・対象外＝グレーアウト
+const isLost = l => ['失注', '断り', '対象外'].includes(l['ステータス']) || ['失注', 'ツブレ'].includes(l['商談ステータス']) || /NG|失注|ツブレ/i.test(String(l['進捗_商談結果'] || ''));
 const rowCls = l => l['ステータス'] === '重複' ? 'dup' : isLost(l) ? 'lost' : '';
 function leadRows(list, cols) {
   if (!list.length) return `<div class="empty">該当するリードはありません</div>`;
