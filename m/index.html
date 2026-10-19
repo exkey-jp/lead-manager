@@ -611,6 +611,11 @@ function renderAna() {
       const L2 = D.leads.filter(inCM);
       const won = L2.filter(l => l._won && evMon(l, '成約日', '商談実施日', 'アポ日時') === ym);
       m.apo = L2.filter(l => l._apo && evMon(l, 'アポ獲得日', 'アポ日時') === ym).length;
+      // 決まった日までのアポ数は固定値（それまでの管理の数字）＋それより後に取れたアポ（訴求・媒体で絞っていないときだけ）
+      const AF = D.apoFixed;
+      if (AF && !F.camp && !F.media && ym <= AF.until.slice(0, 7)) {
+        m.apo = num(AF.months[ym]) + L2.filter(l => l._apo && evMon(l, 'アポ獲得日', 'アポ日時') === ym && String(l['アポ獲得日'] || l['アポ日時']).slice(0, 10) > AF.until).length;
+      }
       m.deal = L2.filter(l => l._dealDone && evMon(l, '商談実施日', 'アポ日時', 'アポ獲得日') === ym).length;
       m.won = won.length; m.sales = won.reduce((s, l) => s + l._sales, 0); m.gross = won.reduce((s, l) => s + l._gross, 0);
       m.grossEst = won.some(l => l._grossEst); m.profit = m.gross - m.cost;
@@ -668,7 +673,7 @@ function renderAna() {
   </div>
   <h2>月別の成果</h2>
   <div class="filters" style="margin:4px 0"><span class="seg"><button data-basis="recv" class="${F.basis !== 'event' ? 'on' : ''}">リード取得月で見る</button><button data-basis="event" class="${F.basis === 'event' ? 'on' : ''}">発生月で見る</button></span>
-    <span class="sub sm">${F.basis === 'event' ? 'アポ＝アポを取った月、商談＝商談した月、成約・売上＝成約した月で数えます（リード数・広告費はリード取得月）。率は目安です。' : 'その月に取得したリードが、あとでアポ・商談・成約になった数です。'}</span></div>
+    <span class="sub sm">${F.basis === 'event' ? 'アポ＝アポを取った月、商談＝商談した月、成約・売上＝成約した月で数えます（リード数・広告費はリード取得月）。率は目安です。' + (D.apoFixed ? ` ${md(D.apoFixed.until)}までのアポ数は、それまでの管理の数字で固定しています（訴求・媒体で絞ったときはシステムの数え方）。` : '') : 'その月に取得したリードが、あとでアポ・商談・成約になった数です。'}</span></div>
   <div class="tblwrap"><table>${thead(F.basis === 'event' ? '月' : 'リード取得月')}<tbody>${byMon.map(x => row(x.ym, x.m)).join('')}</tbody></table></div>
   <div class="grid two">
     <div class="card"><h3>ファネル</h3>${fun.map(([k, v], i) => `<div class="bar funnel"><div class="lb">${k}</div><div class="tr"><div class="fl" style="width:${v / funMax * 100}%"></div></div><div class="vl">${v}件${i ? ' <span class="sub">' + pct(v, fun[i - 1][1]) + '</span>' : ''}</div></div>`).join('')}<div class="note">右の％は1つ前の段階からの移行率。有効リード＝${esc(D.validRule.label)}</div></div>
