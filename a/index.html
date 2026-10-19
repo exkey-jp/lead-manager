@@ -323,8 +323,8 @@ function alerts() {
   const nx = l => toD(l['次回架電予定']);
   const tomorrow = fmt(new Date(now + 864e5)).slice(0, 10);
   return [
-    { k: 'new_red', c: 'red', t: '未架電（警告）', d: `受信から${red}分以上 架電なし`, f: l => l['ステータス'] === '未対応' && l._wait >= red, sort: (a, b) => b._wait - a._wait },
-    { k: 'new_yel', c: 'yel', t: '未架電', d: `受信から${warn}分以上`, f: l => l['ステータス'] === '未対応' && l._wait >= warn && l._wait < red, sort: (a, b) => b._wait - a._wait },
+    { k: 'new_red', c: 'red', t: '未架電（警告）', d: `リード取得から${red}分以上 架電なし`, f: l => l['ステータス'] === '未対応' && l._wait >= red, sort: (a, b) => b._wait - a._wait },
+    { k: 'new_yel', c: 'yel', t: '未架電', d: `リード取得から${warn}分以上`, f: l => l['ステータス'] === '未対応' && l._wait >= warn && l._wait < red, sort: (a, b) => b._wait - a._wait },
     { k: 'new', c: 'blu', t: '新着（未架電）', d: `${warn}分以内・受付時間外`, f: l => l['ステータス'] === '未対応' && l._wait < warn, sort: (a, b) => b._recv - a._recv },
     { k: 'over', c: 'red', t: '再架電 期限切れ', d: '次回架電予定を過ぎている', f: l => l['ステータス'] === '追客中' && nx(l) && nx(l) < now && fmt(nx(l)).slice(0, 10) < t0, sort: (a, b) => nx(a) - nx(b) },
     { k: 'today', c: 'yel', t: '今日の再架電', d: '次回架電予定が今日', f: l => l['ステータス'] === '追客中' && nx(l) && fmt(nx(l)).slice(0, 10) === t0, sort: (a, b) => nx(a) - nx(b) },
@@ -357,7 +357,7 @@ const rowCls = l => l['ステータス'] === '重複' ? 'dup' : isLost(l) ? 'los
 function leadRows(list, cols) {
   if (!list.length) return `<div class="empty">該当するリードはありません</div>`;
   const C = {
-    recv: ['受信', l => `${md(l['受信日時'])}`],
+    recv: ['リード取得日', l => `${md(l['受信日時'])}`],
     wait: ['経過', l => l['ステータス'] === '未対応' ? `<span class="${l._wait >= num(D.settings['初回架電の警告(分)']) ? 'red b' : l._wait >= num(D.settings['初回架電の目標(分)']) ? 'yel b' : ''}">${l._wait <= 0 ? '受付時間前' : ago(l._wait)}</span>` : (l._resp != null ? `<span class="sub" title="初回架電までの時間">${ago(l._resp)}</span>` : '')],
     camp: ['訴求', l => `<span class="sm" title="${esc(campName(l['訴求']))}">${esc(campName(l['訴求']))}</span>`],
     name: ['氏名', l => `<b>${esc(l['氏名'])}</b>${l._notHouse ? '<span class="nh">戸建て以外</span>' : ''}${l._areaOut ? '<span class="nh">エリア外</span>' : ''}`],
@@ -383,7 +383,7 @@ function leadRows(list, cols) {
 // 進捗ビュー：左＝アポ取得進捗（架電〜アポ取得）、右＝商談進捗（アポ後）。1行で両方を追える
 function progRows(list, showCamp) {
   if (!list.length) return `<div class="empty">該当するリードはありません</div>`;
-  const lead = [['受信', l => md(l['受信日時'])], ['氏名', l => `<b>${esc(l['氏名'])}</b>${l._notHouse ? '<span class="nh">戸建て以外</span>' : ''}${l._areaOut ? '<span class="nh">エリア外</span>' : ''}`]]
+  const lead = [['リード取得日', l => md(l['受信日時'])], ['氏名', l => `<b>${esc(l['氏名'])}</b>${l._notHouse ? '<span class="nh">戸建て以外</span>' : ''}${l._areaOut ? '<span class="nh">エリア外</span>' : ''}`]]
     .concat(showCamp ? [['訴求', l => `<span class="sm">${esc(campName(l['訴求']))}</span>`]] : []).concat([['電話番号', l => esc(l['電話番号'])], ['ステータス', l => stBadge(l['ステータス'])]]);
   const deal = [
     ['商談', l => l['商談ステータス'] ? `<span class="dst ${esc(l['商談ステータス'])}">${esc(l['商談ステータス'])}</span>` : (l._apo ? '' : '<span class="sub sm">―</span>')],
@@ -431,7 +431,7 @@ function renderHome(A) {
   <div class="grid alerts">${A.map(a => `<div class="card al ${a.c} ${a.list.length ? '' : 'zero'} ${UI.alert === a.k ? 'on' : ''}" data-al="${a.k}"><div class="t">${a.t}</div><div class="n">${a.list.length}</div><div class="d">${a.d}</div></div>`).join('')}</div>
   <h2>${sel ? esc(sel.t) + ' の一覧 <button class="btn sm" data-al="all">すべての要対応に戻す</button>' : '要対応のリード（未架電・期限切れ・止まっている追客・結果未入力・検討中フォロー）'}</h2>
   ${sel ? leadRows(list, sel.k === 'apo' || sel.k === 'nores' ? ['apo', 'name', 'tel', 'camp', 'deal', 'owner', 'recv'] : ['recv', 'wait', 'name', 'tel', 'pref', 'camp', 'st', 'cnt', 'last', 'next', 'owner'])
-      : list.length ? `<div class="tblwrap"><table><thead><tr><th>理由</th><th>受信</th><th>経過</th><th>氏名</th><th>電話番号</th><th>訴求</th><th>ステータス</th><th>架電</th><th>次回架電</th><th>アポ日時</th><th>担当</th></tr></thead><tbody>${list.map(l => `<tr class="click" data-id="${l['リードID']}"><td><span class="${l._c === 'red' ? 'red' : l._c === 'yel' ? 'yel' : ''} b sm">${esc(l._why)}</span></td><td>${md(l['受信日時'])}</td><td>${l['ステータス'] === '未対応' ? ago(Math.max(0, l._wait)) : ''}</td><td><b>${esc(l['氏名'])}</b></td><td>${esc(l['電話番号'])}</td><td class="sm">${esc(campName(l['訴求']))}</td><td>${stBadge(l['ステータス'])}</td><td>${num(l['架電回数']) || ''}</td><td>${md(l['次回架電予定'])}</td><td>${md(l['アポ日時'])}</td><td>${esc(l['担当者'])}</td></tr>`).join('')}</tbody></table></div>`
+      : list.length ? `<div class="tblwrap"><table><thead><tr><th>理由</th><th>リード取得日</th><th>経過</th><th>氏名</th><th>電話番号</th><th>訴求</th><th>ステータス</th><th>架電</th><th>次回架電</th><th>アポ日時</th><th>担当</th></tr></thead><tbody>${list.map(l => `<tr class="click" data-id="${l['リードID']}"><td><span class="${l._c === 'red' ? 'red' : l._c === 'yel' ? 'yel' : ''} b sm">${esc(l._why)}</span></td><td>${md(l['受信日時'])}</td><td>${l['ステータス'] === '未対応' ? ago(Math.max(0, l._wait)) : ''}</td><td><b>${esc(l['氏名'])}</b></td><td>${esc(l['電話番号'])}</td><td class="sm">${esc(campName(l['訴求']))}</td><td>${stBadge(l['ステータス'])}</td><td>${num(l['架電回数']) || ''}</td><td>${md(l['次回架電予定'])}</td><td>${md(l['アポ日時'])}</td><td>${esc(l['担当者'])}</td></tr>`).join('')}</tbody></table></div>`
       : '<div class="card empty">要対応のリードはありません 🎉</div>'}`;
 }
 
@@ -474,9 +474,9 @@ function renderList() {
   <div class="filters">
     <input id="fq" placeholder="氏名・電話番号・メモで検索" value="${esc(F.q)}" style="width:240px">
     <select id="fowner"><option value="">すべての担当</option>${owners.map(o => `<option ${F.owner === o ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>
-    受信月 <select id="ffrom"><option value="">指定なし</option>${mons.map(m => `<option ${F.from === m ? 'selected' : ''}>${m}</option>`).join('')}</select>〜
+    リード取得月 <select id="ffrom"><option value="">指定なし</option>${mons.map(m => `<option ${F.from === m ? 'selected' : ''}>${m}</option>`).join('')}</select>〜
     <select id="fto"><option value="">指定なし</option>${mons.map(m => `<option ${F.to === m ? 'selected' : ''}>${m}</option>`).join('')}</select>
-    <select id="fsort">${[['受信日時', '受信日時'], ['最終架電日時', '最終架電日時'], ['次回架電予定', '次回架電予定'], ['アポ日時', 'アポ日時'], ['更新日時', '更新日時']].map(([v, t]) => `<option value="${v}" ${k === v ? 'selected' : ''}>${t}順</option>`).join('')}</select>
+    <select id="fsort">${[['受信日時', 'リード取得日'], ['最終架電日時', '最終架電日時'], ['次回架電予定', '次回架電予定'], ['アポ日時', 'アポ日時'], ['更新日時', '更新日時']].map(([v, t]) => `<option value="${v}" ${k === v ? 'selected' : ''}>${t}順</option>`).join('')}</select>
     <button class="btn sm" id="fdir">${d < 0 ? '新しい順' : '古い順'}</button>
 <button class="btn sm" id="ftree" title="左のステータス階層の表示を切り替え">${F.tree === false ? '階層を表示' : '階層を隠す'}</button>
     <label class="sm" style="display:inline-flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="fapo" ${F.apoOnly ? 'checked' : ''}>アポ取得したリードだけ</label>
@@ -602,7 +602,21 @@ function renderAna() {
   const thead = first => `<thead><tr><th>${first}</th><th class="num">広告費</th><th class="num">リード</th><th class="num">有効</th><th class="num">有効率</th><th class="num cpa">CPL</th><th class="num">有効CPL</th><th class="num">架電率</th><th class="num">接続率</th><th class="num">アポ</th><th class="num">アポ率</th><th class="num cpa">アポ単価</th><th class="num">商談</th><th class="num">商談実施率</th><th class="num">成約</th><th class="num">成約率</th><th class="num cpa">成約単価</th><th class="num">売上</th><th class="num">粗利</th><th class="num">粗利−広告費</th><th class="num">ROAS</th></tr></thead>`;
   const byCamp = camps.filter(c => !F.camp || c['訴求'] === F.camp).filter(c => !F.media || hasMedia(c['媒体'], F.media))
     .map(c => ({ c, m: metrics(L.filter(l => l['訴求'] === c['訴求']), costOf(months, c['訴求'])) })).filter(x => x.m.n || x.m.cost);
-  const byMon = months.map(ym => ({ ym, m: metrics(D.leads.filter(l => l._ym === ym && (!F.camp || l['訴求'] === F.camp) && (!F.media || hasMedia(l._media, F.media))), costOf([ym], F.camp, F.media)) }));
+  const inCM = l => (!F.camp || l['訴求'] === F.camp) && (!F.media || hasMedia(l._media, F.media));
+  // 月別：リード取得月で見る（そのリードがあとでアポ等になった数）／発生月で見る（アポ・商談・成約が起きた月で数える）
+  const evMon = (l, ...ks) => { for (const k of ks) { const v = String(l[k] || ''); if (v) return v.slice(0, 7); } return ''; };
+  const byMon = months.map(ym => {
+    const m = metrics(D.leads.filter(l => l._ym === ym && inCM(l)), costOf([ym], F.camp, F.media));
+    if (F.basis === 'event') {
+      const L2 = D.leads.filter(inCM);
+      const won = L2.filter(l => l._won && evMon(l, '成約日', '商談実施日', 'アポ日時') === ym);
+      m.apo = L2.filter(l => l._apo && evMon(l, 'アポ獲得日', 'アポ日時') === ym).length;
+      m.deal = L2.filter(l => l._dealDone && evMon(l, '商談実施日', 'アポ日時', 'アポ獲得日') === ym).length;
+      m.won = won.length; m.sales = won.reduce((s, l) => s + l._sales, 0); m.gross = won.reduce((s, l) => s + l._gross, 0);
+      m.grossEst = won.some(l => l._grossEst); m.profit = m.gross - m.cost;
+    }
+    return { ym, m };
+  });
   // 架電スピード別
   const SP = [['5分以内', 0, 5], ['5〜30分', 5, 30], ['30分〜1時間', 30, 60], ['1〜3時間', 60, 180], ['3時間〜当日', 180, 1440], ['翌日以降', 1440, 1e9]];
   const valid = L.filter(l => l._valid);
@@ -635,13 +649,13 @@ function renderAna() {
 
   $('#p-ana').innerHTML = `
   <div class="filters">
-    受信月 <select id="afrom">${allMons.map(m => `<option ${F.from === m ? 'selected' : ''}>${m}</option>`).join('')}</select>〜
+    リード取得月 <select id="afrom">${allMons.map(m => `<option ${F.from === m ? 'selected' : ''}>${m}</option>`).join('')}</select>〜
     <select id="ato">${allMons.map(m => `<option ${F.to === m ? 'selected' : ''}>${m}</option>`).join('')}</select>
     <button class="btn sm" data-q="this">今月</button><button class="btn sm" data-q="last">先月</button><button class="btn sm" data-q="all">全期間</button>
     <select id="acamp"><option value="">すべての訴求</option>${camps.map(c => `<option value="${esc(c['訴求'])}" ${F.camp === c['訴求'] ? 'selected' : ''}>${esc(c['表示名'] || c['訴求'])}</option>`).join('')}</select>
     <select id="amedia"><option value="">すべての媒体</option>${medias.map(m => `<option ${F.media === m ? 'selected' : ''}>${esc(m)}</option>`).join('')}</select>
   </div>
-  <div class="note">※ その期間に<b>受信したリード</b>が、その後アポ・商談・成約にどれだけつながったかで集計しています（リード起点）。広告費は「設定」で月×訴求ごとに入力した金額です。${M.grossEst ? `粗利の * は未入力分を売上×${D.settings['粗利率の初期値(%)']}%で推定。` : ''}</div>
+  <div class="note">※ その期間に<b>取得したリード</b>が、その後アポ・商談・成約にどれだけつながったかで集計しています（リード起点）。広告費は「設定」で月×訴求ごとに入力した金額です。${M.grossEst ? `粗利の * は未入力分を売上×${D.settings['粗利率の初期値(%)']}%で推定。` : ''}</div>
   <div class="grid kpis" style="margin:12px 0">
     <div class="card kpi"><div class="l">広告費</div><div class="v">${yenS(M.cost)}</div></div>
     <div class="card kpi"><div class="l">リード / 有効</div><div class="v">${M.n} / ${M.valid}</div><div class="s">CPL ${yen(div(M.cost, M.n))}・有効CPL ${yen(div(M.cost, M.valid))}</div></div>
@@ -653,7 +667,9 @@ function renderAna() {
     <div class="card kpi"><div class="l">初回架電までの時間</div><div class="v">${M.respMed != null ? ago(M.respMed) : '-'}</div><div class="s">中央値（受付時間内換算）</div></div>
   </div>
   <h2>月別の成果</h2>
-  <div class="tblwrap"><table>${thead('受信月')}<tbody>${byMon.map(x => row(x.ym, x.m)).join('')}</tbody></table></div>
+  <div class="filters" style="margin:4px 0"><span class="seg"><button data-basis="recv" class="${F.basis !== 'event' ? 'on' : ''}">リード取得月で見る</button><button data-basis="event" class="${F.basis === 'event' ? 'on' : ''}">発生月で見る</button></span>
+    <span class="sub sm">${F.basis === 'event' ? 'アポ＝アポを取った月、商談＝商談した月、成約・売上＝成約した月で数えます（リード数・広告費はリード取得月）。率は目安です。' : 'その月に取得したリードが、あとでアポ・商談・成約になった数です。'}</span></div>
+  <div class="tblwrap"><table>${thead(F.basis === 'event' ? '月' : 'リード取得月')}<tbody>${byMon.map(x => row(x.ym, x.m)).join('')}</tbody></table></div>
   <div class="grid two">
     <div class="card"><h3>ファネル</h3>${fun.map(([k, v], i) => `<div class="bar funnel"><div class="lb">${k}</div><div class="tr"><div class="fl" style="width:${v / funMax * 100}%"></div></div><div class="vl">${v}件${i ? ' <span class="sub">' + pct(v, fun[i - 1][1]) + '</span>' : ''}</div></div>`).join('')}<div class="note">右の％は1つ前の段階からの移行率。有効リード＝${esc(D.validRule.label)}</div></div>
     <div class="card"><h3>月別推移</h3><canvas id="chMon" height="200"></canvas></div>
@@ -682,6 +698,7 @@ function renderAna() {
 
   const sv = (id, k) => $(id).onchange = e => { F[k] = e.target.value; if (F.from > F.to) F.to = F.from; renderAna(); };
   sv('#afrom', 'from'); sv('#ato', 'to'); sv('#acamp', 'camp'); sv('#amedia', 'media');
+  document.querySelectorAll('#p-ana [data-basis]').forEach(b => b.onclick = () => { F.basis = b.dataset.basis; renderAna(); });
   document.querySelectorAll('[data-q]').forEach(b => b.onclick = () => {
     const c = today().slice(0, 7); const [y, m] = c.split('-').map(Number); const last = m === 1 ? `${y - 1}-12` : `${y}-${p2(m - 1)}`;
     if (b.dataset.q === 'this') F.from = F.to = c; if (b.dataset.q === 'last') F.from = F.to = last; if (b.dataset.q === 'all') { F.from = allMons[0]; F.to = c; }
@@ -835,7 +852,7 @@ function drawLead(l, logs) {
       <a class="tel" href="tel:${esc(l['電話番号'])}">📞 ${esc(l['電話番号'])}</a> <span class="sub">${esc(l['都道府県'])}</span></div>
       <button class="btn" id="dclose">閉じる</button>
     </div>
-    <div class="sub sm" style="margin-top:6px">${esc(campName(l['訴求']))}・受信 ${md(l['受信日時'])}${l['ステータス'] === '未対応' ? ` ・<b class="${l._wait >= num(D.settings['初回架電の目標(分)']) ? 'red' : ''}">経過 ${ago(Math.max(0, l._wait))}</b>` : ''}・架電 ${num(l['架電回数'])}回</div>
+    <div class="sub sm" style="margin-top:6px">${esc(campName(l['訴求']))}・リード取得 ${md(l['受信日時'])}${l['ステータス'] === '未対応' ? ` ・<b class="${l._wait >= num(D.settings['初回架電の目標(分)']) ? 'red' : ''}">経過 ${ago(Math.max(0, l._wait))}</b>` : ''}・架電 ${num(l['架電回数'])}回</div>
     ${dup ? `<div class="hint" style="margin:8px 0 0">重複：${md(dup['受信日時'])}「${esc(campName(dup['訴求']))}」に同じ電話番号のリードがあります（${stBadge(dup['ステータス'])}）。 <a href="#" data-open="${dup['リードID']}">そちらを開く</a>　<button class="btn sm" id="undup">重複ではない</button></div>` : sameTel.length && !l['重複元ID'] ? `<div class="note">同じ電話番号：${sameTel.map(x => `<a href="#" data-open="${x['リードID']}">${md(x['受信日時'])} ${esc(campName(x['訴求']))}</a>`).join('、')}</div>` : ''}
   </div>
   <div class="db">
