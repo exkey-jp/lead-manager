@@ -193,8 +193,8 @@ function call(fn, ...args) {
   return new Promise((ok, ng) => google.script.run.withSuccessHandler(ok).withFailureHandler(e => { toast('エラー：' + (e.message || e)); ng(e); }).api_call(KEY, fn, args));
 }
 // Cookie を送らない（複数アカウントでログインしていても Google のエラーにならない）
-// 失敗したときは原因（HTTPの状態・応答の先頭・エラー内容）を画面に出し、1回だけ自動で再試行する
-async function api(body, retry = 1) {
+// 失敗したときは原因（HTTPの状態・応答の先頭・エラー内容）を画面に出し、3回まで自動で再試行する（Google側の一時的な503・404対策）
+async function api(body, retry = 3) {
   let stage = '送信', status = '', head = '';
   try {
     const r = await fetch(API_URL, { method: 'POST', body: JSON.stringify(body), credentials: 'omit', redirect: 'follow' });
@@ -202,7 +202,7 @@ async function api(body, retry = 1) {
     const t = await r.text(); head = t.slice(0, 120).replace(/\s+/g, ' '); stage = '解析';
     return JSON.parse(t);
   } catch (e) {
-    if (retry > 0) { await new Promise(ok => setTimeout(ok, 1500)); return api(body, retry - 1); }
+    if (retry > 0) { await new Promise(ok => setTimeout(ok, 2000)); return api(body, retry - 1); }
     const why = `${stage}で失敗${status ? '（HTTP ' + status + '）' : ''}：${e && e.message ? e.message : e}${head ? ' ／応答：' + head : ''}`;
     console.error('api', why);
     return { ok: false, error: '通信できませんでした。もう一度お試しください。［詳細］' + why };
@@ -538,23 +538,40 @@ const visitNG = l => { const v = String(l['進捗_訪問結果'] || ''); return 
 const rankOf = l => { const r = String(l['進捗_ランク'] || '').toUpperCase().match(/[ABC]/); return r ? r[0] : ''; };
 const isInvalid = l => !l._valid; // 有効・無効はリード情報（会社ごとの定義＝サーバーの validRule）で決める
 function statusTree() {
-  // 階層なので、アポ以下は有効のリードだけ（無効のアポは「無効」に入る）
-  const val = l => !isInvalid(l), fol = l => val(l) && !l._apo, ap = l => val(l) && l._apo, dl = l => ap(l) && !visitNG(l), cons = l => dl(l) && dealRes(l) === '検討';
+  const DF = D.dealRule && D.dealRule.dateField;
+  // アポを取ったリードはリード情報にかかわらず有効に数える（アポ数をそろえるため）
+  const val = l => l._apo || !isInvalid(l), fol = l => val(l) && !l._apo, ap = l => l._apo;
+  if (DF) {
+    // アームズ様：商談＝進捗表M列（商談日）あり／初訪NG＝商談日なし・訪問結果NG／商談前＝それ以外のアポ
+    const vr = l => String(l['進捗_訪問結果'] || '').trim();
+    const dl = l => ap(l) && !!l[DF], fng = l => ap(l) && !l[DF] && /NG/i.test(vr(l)), pre = l => ap(l) && !l[DF] && !fng(l);
+    const res = l => { const s = String(l['進捗_商談結果'] || ''); return /契約|成約/.test(s) ? '成約' : /NG|失注|キャンセル|ツブレ/i.test(s) ? '失注' : '検討'; };
+    return [
+      { k: 'all', t: '全て', d: 0, f: l => true },
+      { k: 'inv', t: '無効', d: 1, f: l => !val(l) },
+      { k: 'val', t: '有効', d: 1, f: val },
+      { k: 'fol', t: '追客中', d: 2, f: fol },
+      { k: 'apo', t: 'アポ', d: 2, f: ap },
+      { k: 'fng', t: '初訪NG', d: 3, f: fng },
+      { k: 'pre', t: '商談前', d: 3, f: pre },
+      { k: 'deal', t: '商談', d: 3, f: dl },
+      { k: 'won', t: '成約', d: 4, f: l => dl(l) && res(l) === '成約' },
+      { k: 'lost', t: '失注', d: 4, f: l => dl(l) && res(l) === '失注' },
+      { k: 'cons', t: '検討', d: 4, f: l => dl(l) && res(l) === '検討' },
+    ];
+  }
+  const dl = l => ap(l) && !visitNG(l), cons = l => dl(l) && dealRes(l) === '検討';
   return [
     { k: 'all', t: '全て', d: 0, f: l => true },
-    { k: 'inv', t: '無効', d: 1, m: '×', f: isInvalid },
+    { k: 'inv', t: '無効', d: 1, f: l => !val(l) },
     { k: 'val', t: '有効', d: 1, f: val },
-    { k: 'fol', t: '追客中', d: 2, m: '×', f: fol },
+    { k: 'fol', t: '追客中', d: 2, f: fol },
     { k: 'apo', t: 'アポ', d: 2, f: ap },
     { k: 'fng', t: '初訪NG', d: 3, f: l => ap(l) && visitNG(l) },
     { k: 'deal', t: '商談', d: 3, f: dl },
-    { k: 'won', t: '成約', d: 4, m: '◯', f: l => dl(l) && dealRes(l) === '成約' },
-    { k: 'lost', t: '失注', d: 4, m: '×', f: l => dl(l) && dealRes(l) === '失注' },
+    { k: 'won', t: '成約', d: 4, f: l => dl(l) && dealRes(l) === '成約' },
+    { k: 'lost', t: '失注', d: 4, f: l => dl(l) && dealRes(l) === '失注' },
     { k: 'cons', t: '検討', d: 4, f: cons },
-    { k: 'rA', t: 'ランクA', d: 5, f: l => cons(l) && rankOf(l) === 'A' },
-    { k: 'rB', t: 'ランクB', d: 5, f: l => cons(l) && rankOf(l) === 'B' },
-    { k: 'rC', t: 'ランクC', d: 5, f: l => cons(l) && rankOf(l) === 'C' },
-    { k: 'rN', t: 'ランク未設定', d: 5, f: l => cons(l) && !rankOf(l) },
     { k: 'pre', t: '商談前', d: 4, f: l => dl(l) && !dealRes(l) },
   ];
 }
