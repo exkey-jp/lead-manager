@@ -289,7 +289,8 @@ function prep() {
     // 取込データで時刻のない初回架電日時（日付だけ）は、速さの計算に使わない
     const f = /\s00:00$/.test(String(l['初回架電日時'])) || String(l['初回架電日時']).length <= 10 ? null : toD(l['初回架電日時']);
     l._resp = f && l._start ? Math.max(0, (f - l._start) / 60e3) : null;
-    l._apo = !!(l['アポ日時'] || l['アポ獲得日']);
+    // 進捗表に商談日（M列）がある先は商談済み＝アポ済みなので、架電シートの結果にかかわらずアポとして数える
+    l._apo = !!(l['アポ日時'] || l['アポ獲得日'] || l['進捗_商談日']);
     const DF = D.dealRule && D.dealRule.dateField; // 商談日の列がある会社は「商談日が入っている＝商談あり」（商談結果がツブレでも数える）
     l._dealDone = DF ? !!l[DF] : ((D.dealRule && D.dealRule.count) || ['現調・見積中', '検討中', '成約', '失注']).includes(l['商談ステータス']);
     l._dealMon = String((DF ? l[DF] : '') || l['商談実施日'] || l['アポ日時'] || l['アポ獲得日'] || '').slice(0, 7);
