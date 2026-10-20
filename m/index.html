@@ -165,7 +165,7 @@ const API_URL = 'https://script.google.com/macros/s/AKfycbxPqEh5EcItMSirYVbk6rRY
 const NS = STATIC ? '_' + API_URL.replace(/\/exec$/, '').slice(-16) : '';
 const TK = { get: () => { try { return localStorage.getItem('lm_token' + NS) || ''; } catch (e) { return ''; } }, set: v => { try { v ? localStorage.setItem('lm_token' + NS, v) : localStorage.removeItem('lm_token' + NS); } catch (e) {} } };
 let D = null;               // api_bootstrap の戻り
-const UI = { page: 'home', alert: 'all', list: { q: '', st: '', camp: '', owner: '', from: '', to: '', need: false, view: 'list', apoOnly: false, info: false, tree: (() => { try { return localStorage.getItem('tree' + NS) !== '0'; } catch (e) { return true; } })() }, ana: { from: '', to: '', camp: '', media: '', basis: 'recv' }, sel: null, sort: { k: '受信日時', d: -1 } };
+const UI = { page: 'home', alert: 'all', list: { q: '', st: '', camp: '', owner: '', from: '', to: '', need: false, view: 'list', apoOnly: false, info: false, tree: (() => { try { return localStorage.getItem('tree' + NS) !== '0'; } catch (e) { return true; } })() }, ana: { from: '', to: '', camp: '', media: '', basis: 'event' }, sel: null, sort: { k: '受信日時', d: -1 } };
 const $ = s => document.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const yen = n => (n == null || !isFinite(n)) ? '-' : '¥' + Math.round(n).toLocaleString();
@@ -412,9 +412,18 @@ function progRows(list, showCamp) {
 }
 
 const shortQ = q => { const t = q.replace(/^Q(\d+)[.．:：、]?\s*/, 'Q$1 ').replace(/を教えてください|を教えて下さい|ですか[？?]|[は]?[？?]$/g, ''); return t.length > 14 ? t.slice(0, 14) + '…' : t; };
+// 発生月のアポ数：アポを取った月で数える。D.apoFixed があれば、その日までは固定値＋それより後のアポ（絞り込みなしのときだけ）
+const apoMonOf = l => String(l['アポ獲得日'] || l['アポ日時'] || '').slice(0, 7);
+function apoByEvent(ym, leads, filtered) {
+  const n = leads.filter(l => l._apo && apoMonOf(l) === ym).length;
+  const AF = D.apoFixed;
+  if (!AF || filtered || ym > AF.until.slice(0, 7)) return n;
+  return num(AF.months[ym]) + leads.filter(l => l._apo && apoMonOf(l) === ym && String(l['アポ獲得日'] || l['アポ日時']).slice(0, 10) > AF.until).length;
+}
 function renderHome(A) {
   const L = D.leads, ym = today().slice(0, 7), t0 = today();
   const mon = L.filter(l => l._ym === ym), m = metrics(mon, costOf([ym], null));
+  const apoEv = apoByEvent(ym, L, false); // 今月のアポ＝今月アポを取った件数（発生月）
   const todayNew = L.filter(l => l['受信日時'].slice(0, 10) === t0).length;
   const sel = UI.alert === 'all' ? null : A.find(a => a.k === UI.alert);
   let list = sel ? sel.list : A.filter(a => !['new', 'long', 'apo'].includes(a.k)).flatMap(a => a.list.map(l => Object.assign(l, { _why: a.t, _c: a.c })));
@@ -423,7 +432,7 @@ function renderHome(A) {
   <div class="grid kpis" style="margin-bottom:16px">
     <div class="card kpi"><div class="l">今日の新着</div><div class="v">${todayNew}件</div></div>
     <div class="card kpi"><div class="l">今月のリード</div><div class="v">${m.n}件</div><div class="s">有効 ${m.valid}件</div></div>
-    <div class="card kpi"><div class="l">今月のアポ</div><div class="v">${m.apo}件</div><div class="s">アポ率 ${pct(m.apo, m.valid)}</div></div>
+    <div class="card kpi"><div class="l">今月のアポ</div><div class="v">${apoEv}件</div><div class="s">今月アポを取った件数</div></div>
     <div class="card kpi"><div class="l">今月の商談</div><div class="v">${m.deal}件</div><div class="s">成約 ${m.won}件</div></div>
     <div class="card kpi hl"><div class="l">今月の新規売上</div><div class="v">${yenS(m.sales)}</div><div class="s">粗利 ${yenS(m.gross)}${m.grossEst ? '（推定含む）' : ''}</div></div>
   </div>
@@ -607,15 +616,10 @@ function renderAna() {
   const evMon = (l, ...ks) => { for (const k of ks) { const v = String(l[k] || ''); if (v) return v.slice(0, 7); } return ''; };
   const byMon = months.map(ym => {
     const m = metrics(D.leads.filter(l => l._ym === ym && inCM(l)), costOf([ym], F.camp, F.media));
-    if (F.basis === 'event') {
+    if (F.basis !== 'recv') {
       const L2 = D.leads.filter(inCM);
       const won = L2.filter(l => l._won && evMon(l, '成約日', '商談実施日', 'アポ日時') === ym);
-      m.apo = L2.filter(l => l._apo && evMon(l, 'アポ獲得日', 'アポ日時') === ym).length;
-      // 決まった日までのアポ数は固定値（それまでの管理の数字）＋それより後に取れたアポ（訴求・媒体で絞っていないときだけ）
-      const AF = D.apoFixed;
-      if (AF && !F.camp && !F.media && ym <= AF.until.slice(0, 7)) {
-        m.apo = num(AF.months[ym]) + L2.filter(l => l._apo && evMon(l, 'アポ獲得日', 'アポ日時') === ym && String(l['アポ獲得日'] || l['アポ日時']).slice(0, 10) > AF.until).length;
-      }
+      m.apo = apoByEvent(ym, L2, !!(F.camp || F.media)); // 決まった日までは固定値（訴求・媒体で絞ったときはシステムの数）
       m.deal = L2.filter(l => l._dealDone && evMon(l, '商談実施日', 'アポ日時', 'アポ獲得日') === ym).length;
       m.won = won.length; m.sales = won.reduce((s, l) => s + l._sales, 0); m.gross = won.reduce((s, l) => s + l._gross, 0);
       m.grossEst = won.some(l => l._grossEst); m.profit = m.gross - m.cost;
@@ -672,9 +676,9 @@ function renderAna() {
     <div class="card kpi"><div class="l">初回架電までの時間</div><div class="v">${M.respMed != null ? ago(M.respMed) : '-'}</div><div class="s">中央値（受付時間内換算）</div></div>
   </div>
   <h2>月別の成果</h2>
-  <div class="filters" style="margin:4px 0"><span class="seg"><button data-basis="recv" class="${F.basis !== 'event' ? 'on' : ''}">リード取得月で見る</button><button data-basis="event" class="${F.basis === 'event' ? 'on' : ''}">発生月で見る</button></span>
-    <span class="sub sm">${F.basis === 'event' ? 'アポ＝アポを取った月、商談＝商談した月、成約・売上＝成約した月で数えます（リード数・広告費はリード取得月）。率は目安です。' + (D.apoFixed ? ` ${md(D.apoFixed.until)}までのアポ数は、それまでの管理の数字で固定しています（訴求・媒体で絞ったときはシステムの数え方）。` : '') : 'その月に取得したリードが、あとでアポ・商談・成約になった数です。'}</span></div>
-  <div class="tblwrap"><table>${thead(F.basis === 'event' ? '月' : 'リード取得月')}<tbody>${byMon.map(x => row(x.ym, x.m)).join('')}</tbody></table></div>
+  <div class="filters" style="margin:4px 0"><span class="seg"><button data-basis="event" class="${F.basis !== 'recv' ? 'on' : ''}">発生月で見る</button><button data-basis="recv" class="${F.basis === 'recv' ? 'on' : ''}">リード取得月で見る</button></span>
+    <span class="sub sm">${F.basis !== 'recv' ? 'アポ＝アポを取った月、商談＝商談した月、成約・売上＝成約した月で数えます（リード数・広告費はリード取得月）。率は目安です。' + (D.apoFixed ? ` ${md(D.apoFixed.until)}までのアポ数は、それまでの管理の数字で固定しています（訴求・媒体で絞ったときはシステムの数え方）。` : '') : 'その月に取得したリードが、あとでアポ・商談・成約になった数です。'}</span></div>
+  <div class="tblwrap"><table>${thead(F.basis !== 'recv' ? '月' : 'リード取得月')}<tbody>${byMon.map(x => row(x.ym, x.m)).join('')}</tbody></table></div>
   <div class="grid two">
     <div class="card"><h3>ファネル</h3>${fun.map(([k, v], i) => `<div class="bar funnel"><div class="lb">${k}</div><div class="tr"><div class="fl" style="width:${v / funMax * 100}%"></div></div><div class="vl">${v}件${i ? ' <span class="sub">' + pct(v, fun[i - 1][1]) + '</span>' : ''}</div></div>`).join('')}<div class="note">右の％は1つ前の段階からの移行率。有効リード＝${esc(D.validRule.label)}</div></div>
     <div class="card"><h3>月別推移</h3><canvas id="chMon" height="200"></canvas></div>
