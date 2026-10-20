@@ -290,7 +290,9 @@ function prep() {
     const f = /\s00:00$/.test(String(l['初回架電日時'])) || String(l['初回架電日時']).length <= 10 ? null : toD(l['初回架電日時']);
     l._resp = f && l._start ? Math.max(0, (f - l._start) / 60e3) : null;
     l._apo = !!(l['アポ日時'] || l['アポ獲得日']);
-    l._dealDone = ((D.dealRule && D.dealRule.count) || ['現調・見積中', '検討中', '成約', '失注']).includes(l['商談ステータス']);
+    const DF = D.dealRule && D.dealRule.dateField; // 商談日の列がある会社は「商談日が入っている＝商談あり」（商談結果がツブレでも数える）
+    l._dealDone = DF ? !!l[DF] : ((D.dealRule && D.dealRule.count) || ['現調・見積中', '検討中', '成約', '失注']).includes(l['商談ステータス']);
+    l._dealMon = String((DF ? l[DF] : '') || l['商談実施日'] || l['アポ日時'] || l['アポ獲得日'] || '').slice(0, 7);
     l._won = l['ステータス'] === '成約' || l['商談ステータス'] === '成約';
     l._sales = l._won ? num(l['売上']) : 0;
     l._grossEst = l._won && l['粗利'] === '';
@@ -424,6 +426,7 @@ function renderHome(A) {
   const L = D.leads, ym = today().slice(0, 7), t0 = today();
   const mon = L.filter(l => l._ym === ym), m = metrics(mon, costOf([ym], null));
   const apoEv = apoByEvent(ym, L, false); // 今月のアポ＝今月アポを取った件数（発生月）
+  const dealEv = L.filter(l => l._dealDone && l._dealMon === ym).length; // 今月の商談＝今月商談した件数
   const todayNew = L.filter(l => l['受信日時'].slice(0, 10) === t0).length;
   const sel = UI.alert === 'all' ? null : A.find(a => a.k === UI.alert);
   let list = sel ? sel.list : A.filter(a => !['new', 'long', 'apo'].includes(a.k)).flatMap(a => a.list.map(l => Object.assign(l, { _why: a.t, _c: a.c })));
@@ -433,7 +436,7 @@ function renderHome(A) {
     <div class="card kpi"><div class="l">今日の新着</div><div class="v">${todayNew}件</div></div>
     <div class="card kpi"><div class="l">今月のリード</div><div class="v">${m.n}件</div><div class="s">有効 ${m.valid}件</div></div>
     <div class="card kpi"><div class="l">今月のアポ</div><div class="v">${apoEv}件</div><div class="s">今月アポを取った件数</div></div>
-    <div class="card kpi"><div class="l">今月の商談</div><div class="v">${m.deal}件</div><div class="s">成約 ${m.won}件</div></div>
+    <div class="card kpi"><div class="l">今月の商談</div><div class="v">${dealEv}件</div><div class="s">成約 ${m.won}件</div></div>
     <div class="card kpi hl"><div class="l">今月の新規売上</div><div class="v">${yenS(m.sales)}</div><div class="s">粗利 ${yenS(m.gross)}${m.grossEst ? '（推定含む）' : ''}</div></div>
   </div>
   <h2>やること（アラート）</h2>
@@ -620,7 +623,7 @@ function renderAna() {
       const L2 = D.leads.filter(inCM);
       const won = L2.filter(l => l._won && evMon(l, '成約日', '商談実施日', 'アポ日時') === ym);
       m.apo = apoByEvent(ym, L2, !!(F.camp || F.media)); // 決まった日までは固定値（訴求・媒体で絞ったときはシステムの数）
-      m.deal = L2.filter(l => l._dealDone && evMon(l, '商談実施日', 'アポ日時', 'アポ獲得日') === ym).length;
+      m.deal = L2.filter(l => l._dealDone && l._dealMon === ym).length;
       m.won = won.length; m.sales = won.reduce((s, l) => s + l._sales, 0); m.gross = won.reduce((s, l) => s + l._gross, 0);
       m.grossEst = won.some(l => l._grossEst); m.profit = m.gross - m.cost;
     }
