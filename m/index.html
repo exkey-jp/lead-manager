@@ -543,9 +543,9 @@ function statusTree() {
   // アポを取ったリードはリード情報にかかわらず有効に数える（アポ数をそろえるため）
   const val = l => l._apo || !isInvalid(l), fol = l => val(l) && !l._apo, ap = l => l._apo;
   if (DF) {
-    // アームズ様：商談＝進捗表M列（商談日）あり／初訪NG＝商談日なし・訪問結果NG／商談前＝それ以外のアポ
+    // アームズ様：商談＝進捗表M列（商談日）あり／初訪NG＝商談日なし・訪問結果NGかツブレ／商談前＝それ以外で進捗表にあるアポ／進捗表なし＝架電シートでアポだが進捗表にまだない
     const vr = l => String(l['進捗_訪問結果'] || '').trim();
-    const dl = l => ap(l) && !!l[DF], fng = l => ap(l) && !l[DF] && /NG/i.test(vr(l)), pre = l => ap(l) && !l[DF] && !fng(l);
+    const dl = l => ap(l) && !!l[DF], fng = l => ap(l) && !l[DF] && /NG|ツブレ/i.test(vr(l)), pre = l => ap(l) && !l[DF] && !!vr(l) && !fng(l), nop = l => ap(l) && !l[DF] && !vr(l);
     const res = l => { const s = String(l['進捗_商談結果'] || ''); return /契約|成約/.test(s) ? '成約' : /NG|失注|キャンセル|ツブレ/i.test(s) ? '失注' : '検討'; };
     return [
       { k: 'all', t: '全て', d: 0, f: l => true },
@@ -555,11 +555,12 @@ function statusTree() {
       { k: 'apo', t: 'アポ', d: 2, f: ap },
       { k: 'fng', t: '初訪NG', d: 3, f: fng },
       { k: 'pre', t: '商談前', d: 3, f: pre },
+      { k: 'nop', t: '進捗表なし', d: 3, f: nop },
       { k: 'deal', t: '商談', d: 3, f: dl },
       { k: 'won', t: '成約', d: 4, f: l => dl(l) && res(l) === '成約' },
       { k: 'lost', t: '失注', d: 4, f: l => dl(l) && res(l) === '失注' },
       { k: 'cons', t: '検討', d: 4, f: l => dl(l) && res(l) === '検討' },
-    ];
+    ].filter(n => n.k !== 'nop' || (D.leads || []).some(nop));
   }
   const dl = l => ap(l) && !visitNG(l), cons = l => dl(l) && dealRes(l) === '検討';
   return [
