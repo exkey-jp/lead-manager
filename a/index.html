@@ -355,7 +355,9 @@ function render() {
 function stBadge(s) { return `<span class="st st-${esc(s)}">${esc(s)}</span>`; }
 
 // 行の色：重複＝黒塗り、失注・NG・ツブレ・断り・対象外＝グレーアウト
-const isLost = l => ['失注', '断り', '対象外'].includes(l['ステータス']) || ['失注', 'ツブレ'].includes(l['商談ステータス']) || /NG|失注|ツブレ/i.test(String(l['進捗_商談結果'] || ''));
+// 進捗表の最新の商談結果（商談再訪結果があればそちら）
+const lastRes = l => String(l['進捗_再訪結果'] || l['進捗_商談結果'] || '');
+const isLost = l => ['失注', '断り', '対象外'].includes(l['ステータス']) || ['失注', 'ツブレ'].includes(l['商談ステータス']) || /NG|失注|ツブレ/i.test(String(lastRes(l)));
 const rowCls = l => l['ステータス'] === '重複' ? 'dup' : isLost(l) ? 'lost' : '';
 function leadRows(list, cols) {
   if (!list.length) return `<div class="empty">該当するリードはありません</div>`;
@@ -380,6 +382,8 @@ function leadRows(list, cols) {
     v1r: ['初訪結果', l => `<span class="sm">${esc(l['進捗_訪問結果'] || '')}</span>`],
     invd: ['調査日', l => md(String(l['進捗_調査日'] || '').slice(0, 10))],
     invr: ['調査結果', l => `<span class="sm">${esc(l['進捗_調査結果'] || '')}</span>`],
+    rvd: ['商談再訪日', l => md(String(l['進捗_再訪日'] || '').slice(0, 10))],
+    rvr: ['商談再訪結果', l => `<span class="sm">${esc(l['進捗_再訪結果'] || '')}</span>`],
     dd: ['商談日', l => md(String(l['進捗_商談日'] || '').slice(0, 10))],
     owner: ['担当', l => esc(l['担当者'])],
     sales: ['売上', l => l._won ? yen(l._sales) : ''],
@@ -504,7 +508,7 @@ function renderList() {
     <span class="sub sm">${list.length}件</span>
   </div>
   <div class="lwrap">${F.tree === false ? '' : `<div class="stree">${TREE.map(n => `<span class="chip ${(F.st || 'all') === n.k ? 'on' : ''}" data-st="${n.k === 'all' ? '' : n.k}" style="margin-left:${n.d * 12}px">${n.d ? '<span class="sub">∟</span> ' : ''}${esc(n.t)} <b>${base.filter(n.f).length}</b></span>`).join('')}</div>`}
-  <div class="lmain">${F.view === 'prog' ? progRows(list.slice(0, 500), !F.camp) : leadRows(list.slice(0, 500), DCOLS ? ['recv', 'wait', ...(F.camp ? [] : ['camp']), 'name', 'pref', 'tel', ...qcols, 'memo', 'v1d', 'v1r', 'invd', 'invr', 'dd', 'dres', 'deal', 'sales', 'owner'] : F.camp ? ['recv', 'wait', 'name', 'pref', 'tel', ...qcols, 'st', 'cnt', 'last', 'lastAt', 'hist', 'memo', 'next', 'apo', 'deal', ...DRES, 'sales', 'owner'] : ['recv', 'wait', 'camp', 'name', 'pref', 'tel', 'st', 'cnt', 'last', 'lastAt', 'hist', 'memo', 'next', 'apo', 'deal', ...DRES, 'sales', 'owner'])}
+  <div class="lmain">${F.view === 'prog' ? progRows(list.slice(0, 500), !F.camp) : leadRows(list.slice(0, 500), DCOLS ? ['recv', 'wait', ...(F.camp ? [] : ['camp']), 'name', 'pref', 'tel', ...qcols, 'memo', 'v1d', 'v1r', 'invd', 'invr', 'dd', 'dres', 'rvd', 'rvr', 'deal', 'sales', 'owner'] : F.camp ? ['recv', 'wait', 'name', 'pref', 'tel', ...qcols, 'st', 'cnt', 'last', 'lastAt', 'hist', 'memo', 'next', 'apo', 'deal', ...DRES, 'sales', 'owner'] : ['recv', 'wait', 'camp', 'name', 'pref', 'tel', 'st', 'cnt', 'last', 'lastAt', 'hist', 'memo', 'next', 'apo', 'deal', ...DRES, 'sales', 'owner'])}
   ${list.length > 500 ? '<div class="note">先頭500件を表示しています。絞り込んでください。</div>' : ''}</div></div>`;
   const set = (id, key, ev = 'change') => $(id).addEventListener(ev, e => { F[key] = e.target.value; renderList(); if (id === '#fq') { $('#fq').focus(); $('#fq').setSelectionRange(99, 99); } });
   set('#fq', 'q', 'input'); set('#fowner', 'owner'); set('#ffrom', 'from'); set('#fto', 'to');
@@ -536,7 +540,7 @@ const ST_ORDER = ['未対応', '追客中', 'アポ獲得', '商談中', '成約
 // ステータスの階層（全て → 無効／有効 → 追客中／アポ → 初訪NG／商談 → 成約／失注／検討 → ランク）
 // 商談の結果は進捗表の商談結果（O列）。進捗表がない会社・行は商談ステータスで判定
 const dealRes = l => {
-  const s = String(l['進捗_商談結果'] || '');
+  const s = lastRes(l);
   if (s) return /契約|成約/.test(s) ? '成約' : /NG|失注|キャンセル|ツブレ/i.test(s) ? '失注' : /検討/.test(s) ? '検討' : ''; // 商談結果のツブレは失注
   const d = l['商談ステータス'];
   return d === '成約' ? '成約' : d === '失注' ? '失注' : ['検討中', '現調・見積中'].includes(d) ? '検討' : '';
@@ -553,7 +557,7 @@ function statusTree() {
     // アームズ様：商談＝進捗表M列（商談日）あり／初訪NG＝商談日なし・訪問結果NGかツブレ／商談前＝それ以外で進捗表にあるアポ／進捗表なし＝架電シートでアポだが進捗表にまだない
     const vr = l => String(l['進捗_訪問結果'] || '').trim();
     const dl = l => ap(l) && !!l[DF], fng = l => ap(l) && !l[DF] && /NG|ツブレ/i.test(vr(l)), pre = l => ap(l) && !l[DF] && !!vr(l) && !fng(l), nop = l => ap(l) && !l[DF] && !vr(l);
-    const res = l => { const s = String(l['進捗_商談結果'] || ''); return /契約|成約/.test(s) ? '成約' : /NG|失注|キャンセル|ツブレ/i.test(s) ? '失注' : '検討'; };
+    const res = l => { const s = lastRes(l); return /契約|成約/.test(s) ? '成約' : /NG|失注|キャンセル|ツブレ/i.test(s) ? '失注' : '検討'; };
     return [
       { k: 'all', t: '全て', d: 0, f: l => true },
       { k: 'inv', t: '無効', d: 1, f: l => !val(l) },
