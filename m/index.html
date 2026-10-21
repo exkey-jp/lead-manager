@@ -60,6 +60,7 @@ tr.dup td{background:#262626!important;color:#9a9a9a}tr.dup td b{color:#bbb}tr.d
 .dst.商談前{background:var(--pri2);color:var(--pri)} .dst.成約{background:var(--grnbg);color:var(--grn)} .dst.失注{background:var(--graybg);color:#444} .dst.ツブレ{background:var(--yelbg);color:var(--yel)} .dst.検討中,.dst.現調・見積中{background:var(--purbg);color:var(--pur)}
 .seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden} .seg button{border:0;background:#fff;padding:6px 12px;font:inherit;cursor:pointer;color:var(--sub)} .seg button.on{background:var(--pri);color:#fff}
 .tag{font-size:11px;padding:0 6px;border-radius:4px;background:var(--graybg);color:var(--sub)}
+.tag.live{background:var(--grnbg);color:var(--grn);font-weight:700} .tag.stop{background:var(--graybg);color:var(--gray)}
 .red{color:var(--red)} .yel{color:var(--yel)} .sub{color:var(--sub)} .b{font-weight:700} .sm{font-size:12px}
 .filters{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:6px}
 select,input,textarea{font:inherit;border:1px solid var(--line);border-radius:8px;padding:6px 8px;background:#fff;color:var(--ink)}
@@ -717,7 +718,7 @@ function renderAna() {
     <div class="card"><h3>月別推移</h3><canvas id="chMon" height="200"></canvas></div>
   </div>
   <h2>訴求別の成果</h2>
-  <div class="tblwrap"><table>${thead('訴求')}<tbody>${byCamp.map(x => row(`<b>${esc(x.c['表示名'] || x.c['訴求'])}</b> <span class="tag">${esc(x.c['媒体'] || '')}</span>${x.c['状態'] && x.c['状態'] !== '配信中' ? ` <span class="tag">${esc(x.c['状態'])}</span>` : ''}`, x.m)).join('')}${row('合計', M, 'class="total"')}</tbody></table></div>
+  <div class="tblwrap"><table>${thead('訴求')}<tbody>${byCamp.map(x => row(`<b>${esc(x.c['表示名'] || x.c['訴求'])}</b>${x.c['出稿'] ? ` <span class="tag ${x.c['出稿'] === '出稿中' ? 'live' : 'stop'}" title="QuanteeADで昨日・今日に費用が出ているか">${esc(x.c['出稿'])}</span>` : ''} <span class="tag">${esc(x.c['媒体'] || '')}</span>${x.c['状態'] && x.c['状態'] !== '配信中' ? ` <span class="tag">${esc(x.c['状態'])}</span>` : ''}`, x.m)).join('')}${row('合計', M, 'class="total"')}</tbody></table></div>
   <h2>NG理由（なぜ成果にならなかったか）</h2>
   <div class="grid three">
     <div class="card"><h3>失注理由 <span class="sub sm">商談後</span></h3>${bars(lost, 'ng')}</div>
