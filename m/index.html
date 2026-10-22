@@ -558,7 +558,8 @@ function statusTree() {
     // アームズ様：商談＝進捗表M列（商談日）あり／初訪NG＝商談日なし・訪問結果NGかツブレ／商談前＝それ以外で進捗表にあるアポ／進捗表なし＝架電シートでアポだが進捗表にまだない
     const vr = l => String(l['進捗_訪問結果'] || '').trim();
     const dl = l => ap(l) && !!l[DF], fng = l => ap(l) && !l[DF] && /NG|ツブレ/i.test(vr(l)), pre = l => ap(l) && !l[DF] && !!vr(l) && !fng(l), nop = l => ap(l) && !l[DF] && !vr(l);
-    const res = l => { const s = lastRes(l); return /契約|成約/.test(s) ? '成約' : /NG|失注|キャンセル|ツブレ/i.test(s) ? '失注' : '検討'; };
+    // 進捗表の結果（再訪結果を優先）か、商談ステータス（架電シート）のどちらかで成約・失注なら、そちらに入れる
+    const res = l => { const s = lastRes(l), d = l['商談ステータス']; return /契約|成約/.test(s) || d === '成約' ? '成約' : /NG|失注|キャンセル|ツブレ/i.test(s) || d === '失注' || d === 'ツブレ' ? '失注' : '検討'; };
     return [
       { k: 'all', t: '全て', d: 0, f: l => true },
       { k: 'inv', t: '無効', d: 1, f: l => !val(l) },
