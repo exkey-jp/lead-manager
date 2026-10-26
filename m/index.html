@@ -166,7 +166,7 @@ const API_URL = 'https://script.google.com/macros/s/AKfycbxPqEh5EcItMSirYVbk6rRY
 const NS = STATIC ? '_' + API_URL.replace(/\/exec$/, '').slice(-16) : '';
 const TK = { get: () => { try { return localStorage.getItem('lm_token' + NS) || ''; } catch (e) { return ''; } }, set: v => { try { v ? localStorage.setItem('lm_token' + NS, v) : localStorage.removeItem('lm_token' + NS); } catch (e) {} } };
 let D = null;               // api_bootstrap の戻り
-const UI = { page: 'home', alert: 'all', list: { q: '', st: '', camp: '', owner: '', from: '', to: '', need: false, view: 'list', apoOnly: false, info: false, tree: (() => { try { return localStorage.getItem('tree' + NS) !== '0'; } catch (e) { return true; } })() }, ana: { from: '', to: '', camp: '', media: '', basis: 'event' }, sel: null, sort: { k: '受信日時', d: -1 } };
+const UI = { page: 'home', alert: 'all', list: { q: '', st: '', camp: '', owner: '', from: '', to: '', need: false, view: 'list', apoOnly: false, info: false, tree: (() => { try { return localStorage.getItem('tree' + NS) !== '0'; } catch (e) { return true; } })() }, ana: { from: '', to: '', camp: '', media: '', basis: 'event', live: false }, sel: null, sort: { k: '受信日時', d: -1 } };
 const $ = s => document.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const yen = n => (n == null || !isFinite(n)) ? '-' : '¥' + Math.round(n).toLocaleString();
@@ -645,7 +645,12 @@ function renderAna() {
     <td class="num b">${yen(m.sales)}</td><td class="num">${yen(m.gross)}${m.grossEst ? '<span class="sub">*</span>' : ''}</td><td class="num ${m.profit < 0 ? 'red' : ''}">${m.cost ? yen(m.profit) : '-'}</td><td class="num">${m.cost ? (m.sales / m.cost * 100).toFixed(0) + '%' : '-'}</td></tr>`;
   const thead = first => `<thead><tr><th>${first}</th><th class="num">広告費</th><th class="num">リード</th><th class="num">有効</th><th class="num">有効率</th><th class="num cpa">CPL</th><th class="num">有効CPL</th><th class="num">架電率</th><th class="num">接続率</th><th class="num">アポ</th><th class="num">アポ率</th><th class="num cpa">アポ単価</th><th class="num">商談</th><th class="num">商談実施率</th><th class="num">成約</th><th class="num">成約率</th><th class="num cpa">成約単価</th><th class="num">売上</th><th class="num">粗利</th><th class="num">粗利−広告費</th><th class="num">ROAS</th></tr></thead>`;
   const byCamp = camps.filter(c => !F.camp || c['訴求'] === F.camp).filter(c => !F.media || hasMedia(c['媒体'], F.media))
+    .filter(c => !F.live || c['出稿'] === '出稿中') // 「出稿中だけ」：QuanteeADで昨日・今日に費用が出ている訴求
     .map(c => ({ c, m: metrics(L.filter(l => l['訴求'] === c['訴求']), costOf(months, c['訴求'])) })).filter(x => x.m.n || x.m.cost);
+  const hasLive = camps.some(c => c['出稿']);
+  // 出稿中だけに絞ったときの合計は、表に出ている訴求だけで計算する
+  const liveSet = {}; byCamp.forEach(x => (liveSet[x.c['訴求']] = true));
+  const Mtab = F.live ? metrics(L.filter(l => liveSet[l['訴求']]), byCamp.reduce((a, x) => a + x.m.cost, 0)) : M;
   const inCM = l => (!F.camp || l['訴求'] === F.camp) && (!F.media || hasMedia(l._media, F.media));
   // 月別：リード取得月で見る（そのリードがあとでアポ等になった数）／発生月で見る（アポ・商談・成約が起きた月で数える）
   const evMon = (l, ...ks) => { for (const k of ks) { const v = String(l[k] || ''); if (v) return v.slice(0, 7); } return ''; };
@@ -718,8 +723,8 @@ function renderAna() {
     <div class="card"><h3>ファネル</h3>${fun.map(([k, v], i) => `<div class="bar funnel"><div class="lb">${k}</div><div class="tr"><div class="fl" style="width:${v / funMax * 100}%"></div></div><div class="vl">${v}件${i ? ' <span class="sub">' + pct(v, fun[i - 1][1]) + '</span>' : ''}</div></div>`).join('')}<div class="note">右の％は1つ前の段階からの移行率。有効リード＝${esc(D.validRule.label)}</div></div>
     <div class="card"><h3>月別推移</h3><canvas id="chMon" height="200"></canvas></div>
   </div>
-  <h2>訴求別の成果</h2>
-  <div class="tblwrap"><table>${thead('訴求')}<tbody>${byCamp.map(x => row(`<b>${esc(x.c['表示名'] || x.c['訴求'])}</b>${x.c['出稿'] ? ` <span class="tag ${x.c['出稿'] === '出稿中' ? 'live' : 'stop'}" title="QuanteeADで昨日・今日に費用が出ているか">${esc(x.c['出稿'])}</span>` : ''} <span class="tag">${esc(x.c['媒体'] || '')}</span>${x.c['状態'] && x.c['状態'] !== '配信中' ? ` <span class="tag">${esc(x.c['状態'])}</span>` : ''}`, x.m)).join('')}${row('合計', M, 'class="total"')}</tbody></table></div>
+  <h2 style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">訴求別の成果${hasLive ? ` <span class="seg" style="font-size:13px;font-weight:400"><button data-live="" class="${F.live ? '' : 'on'}">すべて</button><button data-live="1" class="${F.live ? 'on' : ''}" title="QuanteeADで昨日・今日に広告費が出ている訴求だけ">出稿中だけ</button></span>` : ''}</h2>
+  <div class="tblwrap"><table>${thead('訴求')}<tbody>${byCamp.map(x => row(`<b>${esc(x.c['表示名'] || x.c['訴求'])}</b>${x.c['出稿'] ? ` <span class="tag ${x.c['出稿'] === '出稿中' ? 'live' : 'stop'}" title="QuanteeADで昨日・今日に費用が出ているか">${esc(x.c['出稿'])}</span>` : ''} <span class="tag">${esc(x.c['媒体'] || '')}</span>${x.c['状態'] && x.c['状態'] !== '配信中' ? ` <span class="tag">${esc(x.c['状態'])}</span>` : ''}`, x.m)).join('')}${row(F.live ? '合計（出稿中）' : '合計', Mtab, 'class="total"')}</tbody></table></div>
   <h2>NG理由（なぜ成果にならなかったか）</h2>
   <div class="grid three">
     <div class="card"><h3>失注理由 <span class="sub sm">商談後</span></h3>${bars(lost, 'ng')}</div>
@@ -743,6 +748,7 @@ function renderAna() {
   const sv = (id, k) => $(id).onchange = e => { F[k] = e.target.value; if (F.from > F.to) F.to = F.from; renderAna(); };
   sv('#afrom', 'from'); sv('#ato', 'to'); sv('#acamp', 'camp'); sv('#amedia', 'media');
   document.querySelectorAll('#p-ana [data-basis]').forEach(b => b.onclick = () => { F.basis = b.dataset.basis; renderAna(); });
+  document.querySelectorAll('#p-ana [data-live]').forEach(b => b.onclick = () => { F.live = !!b.dataset.live; renderAna(); });
   document.querySelectorAll('[data-q]').forEach(b => b.onclick = () => {
     const c = today().slice(0, 7); const [y, m] = c.split('-').map(Number); const last = m === 1 ? `${y - 1}-12` : `${y}-${p2(m - 1)}`;
     if (b.dataset.q === 'this') F.from = F.to = c; if (b.dataset.q === 'last') F.from = F.to = last; if (b.dataset.q === 'all') { F.from = allMons[0]; F.to = c; }
