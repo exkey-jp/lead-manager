@@ -1,0 +1,1006 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<title>リード管理</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<meta charset="utf-8">
+<style>
+:root{--bg:#f5f6f8;--card:#fff;--ink:#1d2433;--sub:#5f6b7d;--line:#e3e7ee;--pri:#1f5eff;--pri2:#e8efff;--red:#d93025;--redbg:#fde8e6;--yel:#b26a00;--yelbg:#fff4dc;--grn:#137333;--grnbg:#e6f4ea;--gray:#80868b;--graybg:#f1f3f4;--pur:#7b3fe4;--purbg:#f1eafe}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 "Hiragino Sans","Noto Sans JP",system-ui,sans-serif}
+header{background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:16px;padding:0 20px;height:56px;position:sticky;top:0;z-index:20}
+header h1{font-size:16px;margin:0;white-space:nowrap}
+nav{display:flex;gap:4px;height:100%}
+nav button{border:0;background:none;padding:0 14px;font:inherit;color:var(--sub);cursor:pointer;border-bottom:3px solid transparent;height:100%}
+nav button.on{color:var(--pri);border-bottom-color:var(--pri);font-weight:700}
+nav .badge{background:var(--red);color:#fff;border-radius:10px;padding:0 6px;font-size:11px;margin-left:4px}
+.hd-right{margin-left:auto;display:flex;align-items:center;gap:10px;color:var(--sub);font-size:12px}
+main{padding:10px 12px;margin:0 auto}
+.btn{border:1px solid var(--line);background:#fff;border-radius:8px;padding:6px 12px;font:inherit;cursor:pointer;color:var(--ink)}
+.btn:hover{background:var(--graybg)}
+.btn.pri{background:var(--pri);border-color:var(--pri);color:#fff}
+.btn.pri:hover{filter:brightness(.95)}
+.btn.sm{padding:3px 8px;font-size:12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px}
+.grid{display:grid;gap:12px}
+.alerts{grid-template-columns:repeat(auto-fill,minmax(190px,1fr))}
+.al{cursor:pointer;border-left:5px solid var(--line);transition:.1s}
+.al:hover{box-shadow:0 2px 8px rgba(0,0,0,.08)}
+.al.on{outline:2px solid var(--pri)}
+.al .n{font-size:28px;font-weight:700;line-height:1.2}
+.al .t{font-weight:700}
+.al .d{color:var(--sub);font-size:12px}
+.al.red{border-left-color:var(--red)} .al.red .n{color:var(--red)}
+.al.yel{border-left-color:#f2a600} .al.yel .n{color:var(--yel)}
+.al.blu{border-left-color:var(--pri)} .al.blu .n{color:var(--pri)}
+.al.zero{opacity:.55}
+h2{font-size:15px;margin:22px 0 10px}
+h3{font-size:14px;margin:0 0 10px}
+table{border-collapse:collapse;width:100%;background:#fff}
+th,td{padding:7px 9px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+th{background:#fafbfc;color:var(--sub);font-weight:600;font-size:12px;position:sticky;top:0;z-index:1}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+tr.click{cursor:pointer} tr.click:hover td{background:#f7f9ff}
+tr.total td{font-weight:700;background:#fafbfc}
+tr.lost td{background:#eceff1!important;color:#9aa0a6}tr.lost td b{color:#80868b}tr.lost .st,tr.lost .dst{background:#dadce0;color:#5f6368}
+tr.dup td{background:#262626!important;color:#9a9a9a}tr.dup td b{color:#bbb}tr.dup .st{background:#444;color:#ccc}
+.nh{font-size:10px;padding:0 3px;border-radius:3px;background:#fde8e6;color:#d93025;margin-left:2px}
+.tblwrap{overflow:auto;border:1px solid var(--line);border-radius:12px;max-height:70vh;background:#fff}
+.st{display:inline-block;padding:1px 8px;border-radius:10px;font-size:12px;font-weight:600}
+.st-未対応{background:var(--redbg);color:var(--red)} .st-追客中{background:var(--yelbg);color:var(--yel)}
+.st-アポ獲得{background:var(--pri2);color:var(--pri)} .st-商談中{background:var(--purbg);color:var(--pur)}
+.st-成約{background:var(--grnbg);color:var(--grn)} .st-失注,.st-断り{background:var(--graybg);color:#444}
+.st-対象外,.st-重複{background:var(--graybg);color:var(--gray)}
+.prog th.g{position:sticky;top:0;text-align:center;font-size:12px;color:#fff;z-index:2}
+.prog th.g.lead{background:#5f6b7d} .prog th.g.deal{background:var(--pur)} .prog th.g.call{background:var(--pri)}
+.prog thead tr:nth-child(2) th{top:30px}
+.prog td.dl{background:#faf7ff} .prog td.cl{background:#f6f9ff} .prog td.dl.first,.prog th.dl.first{border-left:3px solid var(--pur)} .prog td.cl.first,.prog th.cl.first{border-left:3px solid var(--pri)}
+.dst{display:inline-block;padding:1px 8px;border-radius:10px;font-size:12px;font-weight:700;background:var(--graybg);color:#444}
+.dst.商談前{background:var(--pri2);color:var(--pri)} .dst.成約{background:var(--grnbg);color:var(--grn)} .dst.失注{background:var(--graybg);color:#444} .dst.ツブレ{background:var(--yelbg);color:var(--yel)} .dst.検討中,.dst.現調・見積中{background:var(--purbg);color:var(--pur)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden} .seg button{border:0;background:#fff;padding:6px 12px;font:inherit;cursor:pointer;color:var(--sub)} .seg button.on{background:var(--pri);color:#fff}
+.tag{font-size:11px;padding:0 6px;border-radius:4px;background:var(--graybg);color:var(--sub)}
+.tag.live{background:var(--grnbg);color:var(--grn);font-weight:700} .tag.stop{background:var(--graybg);color:var(--gray)}
+.red{color:var(--red)} .yel{color:var(--yel)} .sub{color:var(--sub)} .b{font-weight:700} .sm{font-size:12px}
+.filters{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:6px}
+select,input,textarea{font:inherit;border:1px solid var(--line);border-radius:8px;padding:6px 8px;background:#fff;color:var(--ink)}
+textarea{width:100%;min-height:60px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:1px solid var(--line);border-radius:16px;padding:3px 10px;cursor:pointer;background:#fff;font-size:12px}
+.lwrap{display:flex;gap:8px;align-items:flex-start}
+td.cpa{background:#e8f0fe;font-weight:600}th.cpa{background:#d2e3fc;color:#174ea6}tr.total td.cpa{background:#d2e3fc}.lmain{flex:1;min-width:0}
+/* リード一覧はスプシのように詰めて表示（画面の大半をリードに使う） */
+#p-list .filters select,#p-list .filters input{padding:3px 6px;font-size:12px}#p-list .filters .btn{padding:3px 8px;font-size:12px}
+#p-list .tblwrap{max-height:calc(100vh - 150px);border-radius:8px}
+#p-list table{font-size:11.5px}#p-list th,#p-list td{padding:2px 5px}#p-list th{font-size:10.5px}
+#p-list td{max-width:96px;overflow:hidden;text-overflow:ellipsis}#p-list td.cmp{max-width:86px}#p-list .hist{max-width:120px}#p-list .memoCell{max-width:110px;min-width:70px}
+#p-list .st,#p-list .dst{font-size:11px;padding:0 6px}
+details.campinfo{margin-bottom:6px}details.campinfo>summary{cursor:pointer;font-size:12px;color:var(--sub);padding:2px 0}
+.stree{flex:0 0 auto;display:flex;flex-direction:column;align-items:flex-start;gap:2px;background:#fff;border:1px solid var(--line);border-radius:8px;padding:6px 8px;font-size:11px;position:sticky;top:68px;max-height:calc(100vh - 90px);overflow:auto}
+@media(max-width:900px){.lwrap{flex-direction:column}.stree{position:static;max-height:none}}.stree .chip b{font-variant-numeric:tabular-nums}.stree .chip{font-size:11px;padding:1px 8px}
+.chip.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.kpis{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
+.kpi .l{color:var(--sub);font-size:12px}
+.kpi .v{font-size:clamp(17px,1.6vw,22px);overflow-wrap:anywhere;font-weight:700;font-variant-numeric:tabular-nums}
+.kpi .s{font-size:12px;color:var(--sub)}
+.kpi.hl{background:#0f2a6b;color:#fff;border-color:#0f2a6b} .kpi.hl .l,.kpi.hl .s{color:#c8d4ff}
+.two{grid-template-columns:1fr 1fr} .three{grid-template-columns:1fr 1fr 1fr}
+@media(max-width:1000px){.two,.three{grid-template-columns:1fr}}
+.bar{display:flex;align-items:center;gap:8px;margin:5px 0}
+.bar .lb{width:150px;flex:none;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar .tr{flex:1;background:var(--graybg);border-radius:4px;height:18px;position:relative}
+.bar .fl{background:var(--pri);height:100%;border-radius:4px}
+.bar .vl{width:90px;flex:none;text-align:right;font-size:12px;font-variant-numeric:tabular-nums}
+.funnel .fl{background:linear-gradient(90deg,#1f5eff,#5b8cff)}
+.ng .fl{background:#e8710a}
+/* drawer */
+#mask{position:fixed;inset:0;background:rgba(0,0,0,.25);display:none;z-index:40}
+#drawer{position:fixed;top:0;right:0;bottom:0;width:min(640px,100%);background:#fff;box-shadow:-4px 0 20px rgba(0,0,0,.15);transform:translateX(100%);transition:.2s;z-index:50;display:flex;flex-direction:column}
+#drawer.open{transform:none} #drawer.open+#mask,#mask.open{display:block}
+.dh{padding:16px 20px;border-bottom:1px solid var(--line)}
+.db{padding:16px 20px;overflow:auto;flex:1}
+.dh .nm{font-size:20px;font-weight:700}
+.tel{font-size:18px;font-weight:700;color:var(--pri);text-decoration:none}
+.kv{display:grid;grid-template-columns:150px 1fr;gap:4px 10px;font-size:13px}
+.kv div:nth-child(odd){color:var(--sub)}
+.sec{border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:14px}
+.sec h3{display:flex;align-items:center;gap:8px}
+.rbtns{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 10px}
+.rbtns .cat{width:100%;font-size:11px;color:var(--sub);margin-top:4px}
+.rb{border:1px solid var(--line);border-radius:8px;padding:5px 10px;background:#fff;cursor:pointer;font:inherit;font-size:13px}
+.rb.on{background:var(--pri);color:#fff;border-color:var(--pri)}
+.rb.c-アポ{border-color:#9db7ff} .rb.c-断り{border-color:#ddd} .rb.c-対象外{border-color:#ddd;color:var(--sub)}
+.form{display:grid;grid-template-columns:130px 1fr;gap:8px 10px;align-items:center}
+.form label{color:var(--sub);font-size:12px}
+.tl{border-left:2px solid var(--line);margin-left:6px;padding-left:14px}
+.tl .it{position:relative;margin-bottom:10px;font-size:13px}
+.tl .it:before{content:"";position:absolute;left:-20px;top:6px;width:10px;height:10px;border-radius:50%;background:var(--pri)}
+.tl .it.商談:before{background:var(--pur)} .tl .it.変更:before{background:var(--gray)}
+.memo{white-space:pre-wrap;background:#fafbfc;border-radius:8px;padding:8px;font-size:13px}
+#toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#202124;color:#fff;padding:10px 18px;border-radius:8px;display:none;z-index:99}
+.empty{color:var(--sub);text-align:center;padding:30px}
+.note{font-size:12px;color:var(--sub);margin:6px 0}
+.pill{display:inline-block;background:var(--graybg);border-radius:6px;padding:2px 8px;margin:2px;font-size:12px}
+.loading{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:var(--bg);z-index:100;color:var(--sub)}
+.costin{width:110px;text-align:right}
+.ctabs{display:flex;gap:4px;overflow-x:auto;padding-bottom:2px;margin-bottom:6px}
+.ctab{flex:none;border:1px solid var(--line);background:#fff;border-radius:8px;padding:4px 10px;font-size:12px!important;font:inherit;cursor:pointer;color:var(--ink);display:flex;align-items:center;gap:6px}
+.ctab.on{background:var(--ink);color:#fff;border-color:var(--ink)} .ctab.on .tag{background:#444;color:#ddd}
+.cbadge{background:var(--red);color:#fff;border-radius:10px;padding:0 7px;font-size:11px;font-weight:700}
+.talktxt{max-height:260px;overflow:auto;font-size:13px;line-height:1.7}
+.hist{font-size:11px;line-height:1.4;max-height:44px;overflow:auto;white-space:nowrap}
+.memoCell{min-width:90px;max-width:180px;white-space:pre-wrap;font-size:11px;line-height:1.4;cursor:text;border:1px dashed transparent;border-radius:6px;padding:1px 3px;max-height:44px;overflow:auto}
+.memoCell:hover{border-color:var(--line);background:#fff}
+td textarea.memoEdit{width:240px;min-height:70px;font-size:12px}
+.hint{background:var(--yelbg);border-radius:8px;padding:8px 12px;font-size:12px;color:#6b4a00;margin-bottom:12px}
+</style>
+</head>
+<body>
+<div class="loading" id="loading">読み込み中…（10秒ほどかかることがあります）</div>
+<header>
+  <h1 id="title">リード管理</h1>
+  <nav id="nav">
+    <button data-p="home" class="on">ホーム<span class="badge" id="navBadge" style="display:none"></span></button>
+    <button data-p="list">リード一覧</button>
+    <button data-p="ana">成果分析</button>
+    <button data-p="set">設定</button>
+  </nav>
+  <div class="hd-right"><span id="who"></span><span id="updated"></span><button class="btn sm" id="reload">最新に更新</button></div>
+</header>
+<main>
+  <section id="p-home"></section>
+  <section id="p-list" hidden></section>
+  <section id="p-ana" hidden></section>
+  <section id="p-set" hidden></section>
+</main>
+<aside id="drawer"></aside><div id="mask"></div>
+<div id="toast"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+// ====================== 状態 ======================
+const KEY = '<?= k ?>'; // 利用者ごとのアクセスキー（URLの ?k=）。Apps Script で開いたときだけ使う
+// Googleの外（GitHub Pages等）に置いたときは、メール＋確認コードでログインし、Cookieなしの fetch で API を呼ぶ
+const STATIC = !(window.google && google.script && google.script.run);
+const API_URL = 'https://script.google.com/macros/s/AKfycbyLy89gG6bH684i7R7ByHj8NB-VUacb2PVrKUD2aOp5m8WfEvtrQzNPvcSHmLrrosdM/exec';
+// 同じドメイン（github.io）に複数社のログイン画面を置くので、保存先は会社（API_URL）ごとに分ける。分けないと別の会社に入ると前の会社のログインが上書きされる
+const NS = STATIC ? '_' + API_URL.replace(/\/exec$/, '').slice(-16) : '';
+const TK = { get: () => { try { return localStorage.getItem('lm_token' + NS) || ''; } catch (e) { return ''; } }, set: v => { try { v ? localStorage.setItem('lm_token' + NS, v) : localStorage.removeItem('lm_token' + NS); } catch (e) {} } };
+let D = null;               // api_bootstrap の戻り
+const UI = { page: 'home', alert: 'all', list: { q: '', st: '', camp: '', owner: '', from: '', to: '', need: false, view: 'list', apoOnly: false, info: false, tree: (() => { try { return localStorage.getItem('tree' + NS) !== '0'; } catch (e) { return true; } })() }, ana: { from: '', to: '', camp: '', media: '', basis: 'event', live: false }, sel: null, sort: { k: '受信日時', d: -1 } };
+const $ = s => document.querySelector(s);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const yen = n => (n == null || !isFinite(n)) ? '-' : '¥' + Math.round(n).toLocaleString();
+const yenS = n => (n == null || !isFinite(n)) ? '-' : Math.abs(n) >= 1e6 ? '¥' + Math.round(n / 1e4).toLocaleString() + '万' : yen(n);
+const man = n => (n == null || !isFinite(n)) ? '-' : (Math.abs(n) >= 1e4 ? (Math.round(n / 1e3) / 10).toLocaleString() + '万' : Math.round(n).toLocaleString()) ;
+const pct = (a, b) => b ? (a / b * 100).toFixed(1) + '%' : '-';
+const num = v => { const n = Number(String(v == null ? '' : v).replace(/[,¥円\s]/g, '')); return isFinite(n) ? n : 0; };
+const toD = s => { if (!s) return null; const m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2}))?/); return m ? new Date(`${m[1]}-${m[2]}-${m[3]}T${m[4] || '00'}:${m[5] || '00'}:00+09:00`) : null; };
+const p2 = n => ('0' + n).slice(-2);
+const jst = d => { const x = new Date(d.getTime() + 9 * 3600e3); return { y: x.getUTCFullYear(), m: x.getUTCMonth() + 1, d: x.getUTCDate(), h: x.getUTCHours(), mi: x.getUTCMinutes(), w: x.getUTCDay() }; };
+const fmt = d => { const j = jst(d); return `${j.y}-${p2(j.m)}-${p2(j.d)} ${p2(j.h)}:${p2(j.mi)}`; };
+const today = () => fmt(new Date()).slice(0, 10);
+const md = s => s ? `${+s.slice(5, 7)}/${+s.slice(8, 10)}${s.length > 10 ? ' ' + s.slice(11, 16) : ''}` : '';
+const ago = min => min < 60 ? `${Math.round(min)}分` : min < 1440 ? `${Math.floor(min / 60)}時間${Math.round(min % 60)}分` : `${Math.floor(min / 1440)}日${Math.floor(min % 1440 / 60)}時間`;
+function toast(m) { const t = $('#toast'); t.textContent = m; t.style.display = 'block'; clearTimeout(t._t); t._t = setTimeout(() => t.style.display = 'none', 3000); }
+function call(fn, ...args) {
+  if (STATIC) {
+    return api({ action: 'call', token: TK.get(), name: fn, args }).then(r => {
+      if (r.ok) return r.data;
+      if (r.auth) { TK.set(''); showLogin(r.error); }
+      else toast('エラー：' + r.error);
+      throw new Error(r.error);
+    });
+  }
+  return new Promise((ok, ng) => google.script.run.withSuccessHandler(ok).withFailureHandler(e => { toast('エラー：' + (e.message || e)); ng(e); }).api_call(KEY, fn, args));
+}
+// Cookie を送らない（複数アカウントでログインしていても Google のエラーにならない）
+// 失敗したときは原因（HTTPの状態・応答の先頭・エラー内容）を画面に出し、3回まで自動で再試行する（Google側の一時的な503・404対策）
+async function api(body, retry = 3) {
+  let stage = '送信', status = '', head = '';
+  try {
+    const r = await fetch(API_URL, { method: 'POST', body: JSON.stringify(body), credentials: 'omit', redirect: 'follow' });
+    status = r.status; stage = '受信';
+    const t = await r.text(); head = t.slice(0, 120).replace(/\s+/g, ' '); stage = '解析';
+    return JSON.parse(t);
+  } catch (e) {
+    if (retry > 0) { await new Promise(ok => setTimeout(ok, 2000)); return api(body, retry - 1); }
+    const why = `${stage}で失敗${status ? '（HTTP ' + status + '）' : ''}：${e && e.message ? e.message : e}${head ? ' ／応答：' + head : ''}`;
+    console.error('api', why);
+    return { ok: false, error: '通信できませんでした。もう一度お試しください。［詳細］' + why };
+  }
+}
+function showLogin(msg) {
+  const el = $('#loading'); el.style.display = 'flex';
+  el.innerHTML = `<div class="card" style="width:min(380px,92vw);padding:28px">
+    <div style="font-size:18px;font-weight:700;margin-bottom:4px">${esc(document.title || 'リード管理')}</div>
+    <div class="sub sm" style="margin-bottom:16px">登録されたメールアドレスでログインします</div>
+    ${msg ? `<div class="hint">${esc(msg)}</div>` : ''}
+    <div id="lgStep1"><label class="sm sub">メールアドレス</label><input id="lgEmail" type="email" autocomplete="email" style="width:100%;margin:4px 0 12px" placeholder="name@example.com">
+      <button class="btn pri" id="lgSend" style="width:100%">確認コードを送る</button></div>
+    <div id="lgStep2" style="display:none"><div class="sm" style="margin-bottom:8px"><b id="lgTo"></b> に6桁のコードを送りました（届くまで1分ほどかかることがあります。迷惑メールフォルダもご確認ください）</div>
+      <input id="lgCode" inputmode="numeric" autocomplete="one-time-code" maxlength="6" style="width:100%;font-size:22px;letter-spacing:8px;text-align:center;margin-bottom:12px" placeholder="000000">
+      <button class="btn pri" id="lgVerify" style="width:100%">ログイン</button>
+      <div style="margin-top:10px;text-align:center"><a href="#" id="lgBack" class="sm">メールアドレスを入れ直す・コードを送り直す</a></div></div>
+    <div id="lgErr" class="red sm" style="margin-top:10px"></div></div>`;
+  let saved = ''; try { saved = localStorage.getItem('lm_email' + NS) || ''; } catch (e) {}
+  $('#lgEmail').value = saved;
+  const err = m => { $('#lgErr').textContent = m || ''; };
+  const busy = (b, on, t) => { b.disabled = on; b.textContent = t; };
+  $('#lgSend').onclick = async () => {
+    const em = $('#lgEmail').value.trim(); if (!em) return err('メールアドレスを入力してください');
+    busy($('#lgSend'), true, '送信中…'); err('');
+    const r = await api({ action: 'requestCode', email: em });
+    busy($('#lgSend'), false, '確認コードを送る');
+    if (!r.ok) return err(r.error);
+    try { localStorage.setItem('lm_email' + NS, em); } catch (e) {}
+    $('#lgTo').textContent = em; $('#lgStep1').style.display = 'none'; $('#lgStep2').style.display = ''; $('#lgCode').focus();
+  };
+  $('#lgEmail').onkeydown = e => { if (e.key === 'Enter') $('#lgSend').click(); };
+  $('#lgVerify').onclick = async () => {
+    busy($('#lgVerify'), true, '確認中…'); err('');
+    const r = await api({ action: 'verify', email: $('#lgEmail').value.trim(), code: $('#lgCode').value });
+    busy($('#lgVerify'), false, 'ログイン');
+    if (!r.ok) return err(r.error);
+    TK.set(r.token); el.innerHTML = '読み込み中…'; load(false);
+  };
+  $('#lgCode').onkeydown = e => { if (e.key === 'Enter') $('#lgVerify').click(); };
+  $('#lgBack').onclick = e => { e.preventDefault(); $('#lgStep2').style.display = 'none'; $('#lgStep1').style.display = ''; err(''); };
+}
+async function logout() { await api({ action: 'logout', token: TK.get() }); TK.set(''); D = null; showLogin('ログアウトしました'); }
+const CAMP = name => (D.campaigns.find(c => c['訴求'] === name) || {});
+const campName = name => CAMP(name)['表示名'] || name;
+
+// ====================== 読み込み・前処理 ======================
+async function load(sync) {
+  if (STATIC && !TK.get()) { showLogin(); return; }
+  try { D = await call('api_bootstrap', !!sync); } catch (e) {
+    if (STATIC && !TK.get()) return; // ログイン画面に戻った
+    if (!D) $('#loading').innerHTML = `<div style="text-align:center"><b>読み込めませんでした</b><br><span class="sm">${esc(e.message || e)}</span><br><button class="btn" onclick="location.reload()" style="margin-top:10px">再読み込み</button></div>`;
+    return;
+  }
+  prep();
+  $('#loading').style.display = 'none';
+  $('#title').textContent = `${D.client}様 リード管理`;
+  $('#who').innerHTML = (D.me.name ? `${esc(D.me.name)}${D.me.admin ? '（管理）' : ''}` : '') + (STATIC ? ' <a href="#" id="logout" class="sm">ログアウト</a>' : '');
+  if (STATIC) $('#logout').onclick = e => { e.preventDefault(); logout(); };
+  $('#updated').textContent = `更新 ${md(D.now)}`;
+  if (D.sync && D.sync.added) toast(`新しいリードを${D.sync.added}件取り込みました`);
+  render();
+}
+function prep() {
+  const S = D.settings;
+  const [oh, om] = String(S['架電可能時間_開始'] || '09:00').split(':').map(Number);
+  const [ch, cm] = String(S['架電可能時間_終了'] || '20:00').split(':').map(Number);
+  const now = Date.now();
+  // 架電の起点：受付時間外に来たリードは次の開始時刻から数える
+  const startOf = d => {
+    const j = jst(d), t = j.h * 60 + j.mi, base = Date.UTC(j.y, j.m - 1, j.d) - 9 * 3600e3;
+    if (t < oh * 60 + om) return new Date(base + (oh * 60 + om) * 60e3);
+    if (t >= ch * 60 + cm) return new Date(base + 864e5 + (oh * 60 + om) * 60e3);
+    return d;
+  };
+  const callsBy = {};
+  D.logs.forEach(g => { if (g[2] === '架電') (callsBy[g[1]] = callsBy[g[1]] || []).push(g); });
+  Object.values(callsBy).forEach(a => a.sort((x, y) => String(x[0]).localeCompare(String(y[0]))));
+  D.leads.forEach(l => {
+    const r = toD(l['受信日時']);
+    l._recv = r; l._ym = l['受信日時'].slice(0, 7);
+    l._start = r ? startOf(r) : null;
+    l._wait = l._start ? (now - l._start) / 60e3 : 0; // 起点からの経過分
+    // 取込データで時刻のない初回架電日時（日付だけ）は、速さの計算に使わない
+    const f = /\s00:00$/.test(String(l['初回架電日時'])) || String(l['初回架電日時']).length <= 10 ? null : toD(l['初回架電日時']);
+    l._resp = f && l._start ? Math.max(0, (f - l._start) / 60e3) : null;
+    // 進捗表に商談日（M列）がある先は商談済み＝アポ済みなので、架電シートの結果にかかわらずアポとして数える
+    l._apo = !!(l['アポ日時'] || l['アポ獲得日'] || l['進捗_商談日']);
+    const DF = D.dealRule && D.dealRule.dateField; // 商談日の列がある会社は「商談日が入っている＝商談あり」（商談結果がツブレでも数える）
+    l._dealDone = DF ? !!l[DF] : ((D.dealRule && D.dealRule.count) || ['現調・見積中', '検討中', '成約', '失注']).includes(l['商談ステータス']);
+    l._dealMon = String((DF ? l[DF] : '') || l['商談実施日'] || l['アポ日時'] || l['アポ獲得日'] || '').slice(0, 7);
+    l._won = l['ステータス'] === '成約' || l['商談ステータス'] === '成約';
+    l._sales = l._won ? num(l['売上']) : 0;
+    l._grossEst = l._won && l['粗利'] === '';
+    l._gross = l._won ? (l['粗利'] !== '' ? num(l['粗利']) : l._sales * num(S['粗利率の初期値(%)']) / 100) : 0;
+    l._ans = (() => { try { return JSON.parse(l['回答'] || '{}'); } catch (e) { return {}; } })();
+    l._media = CAMP(l['訴求'])['媒体'] || '';
+    // 持ち家戸建てでない回答は有効リードにしない（設問がない訴求は判定しない）
+    // 有効リードの判定（会社ごとの定義はサーバーの validRule）。戸建て以外・エリア外の判定は取込時にサーバーで付けた印を使う
+    const hk = Object.keys(l._ans).find(k => /戸建|住まいの形態/.test(k));
+    l._notHouse = l['戸建て以外'] === '○' || (l['戸建て以外'] === undefined && !!hk && String(l._ans[hk]).trim() !== 'はい');
+    l._areaOut = l['エリア外'] === '○';
+    l._valid = !l._notHouse && !l._areaOut && (D.validRule.exclude || []).indexOf(l['ステータス']) < 0;
+    // 何回目の架電でアポが取れたか
+    const cs = callsBy[l['リードID']] || [];
+    l._hist = cs; // 架電履歴（古い順・積み上げ）
+    const ai = cs.findIndex(g => g[4] === 'アポ');
+    l._apoCallNo = ai >= 0 ? ai + 1 : null;
+  });
+  const mons = [...new Set(D.leads.map(l => l._ym))].sort();
+  const cur = today().slice(0, 7);
+  if (!UI.ana.from) { UI.ana.from = mons[0] || cur; UI.ana.to = cur; }
+}
+
+// ====================== アラート ======================
+function alerts() {
+  const S = D.settings, now = Date.now(), t0 = today();
+  const warn = num(S['初回架電の目標(分)']) || 30, red = num(S['初回架電の警告(分)']) || 120;
+  const stale = num(S['放置とみなす日数']) || 2, maxCall = num(S['追客の上限回数']) || 8, fol = num(S['検討中フォローの日数']) || 7;
+  const L = D.leads;
+  const nx = l => toD(l['次回架電予定']);
+  const tomorrow = fmt(new Date(now + 864e5)).slice(0, 10);
+  return [
+    { k: 'new_red', c: 'red', t: '未架電（警告）', d: `リード取得から${red}分以上 架電なし`, f: l => l['ステータス'] === '未対応' && l._wait >= red, sort: (a, b) => b._wait - a._wait },
+    { k: 'new_yel', c: 'yel', t: '未架電', d: `リード取得から${warn}分以上`, f: l => l['ステータス'] === '未対応' && l._wait >= warn && l._wait < red, sort: (a, b) => b._wait - a._wait },
+    { k: 'new', c: 'blu', t: '新着（未架電）', d: `${warn}分以内・受付時間外`, f: l => l['ステータス'] === '未対応' && l._wait < warn, sort: (a, b) => b._recv - a._recv },
+    { k: 'over', c: 'red', t: '再架電 期限切れ', d: '次回架電予定を過ぎている', f: l => l['ステータス'] === '追客中' && nx(l) && nx(l) < now && fmt(nx(l)).slice(0, 10) < t0, sort: (a, b) => nx(a) - nx(b) },
+    { k: 'today', c: 'yel', t: '今日の再架電', d: '次回架電予定が今日', f: l => l['ステータス'] === '追客中' && nx(l) && fmt(nx(l)).slice(0, 10) === t0, sort: (a, b) => nx(a) - nx(b) },
+    { k: 'stale', c: 'yel', t: '追客が止まっている', d: `予定なし・最終架電から${stale}日以上`, f: l => l['ステータス'] === '追客中' && !l['次回架電予定'] && num(l['架電回数']) < maxCall && (now - toD(l['最終架電日時'])) / 864e5 >= stale, sort: (a, b) => toD(a['最終架電日時']) - toD(b['最終架電日時']) },
+    { k: 'apo', c: 'blu', t: '今日・明日のアポ', d: '商談の準備・前日確認', f: l => l['ステータス'] === 'アポ獲得' && l['アポ日時'] && [t0, tomorrow].includes(l['アポ日時'].slice(0, 10)), sort: (a, b) => toD(a['アポ日時']) - toD(b['アポ日時']) },
+    { k: 'nores', c: 'red', t: '商談結果 未入力', d: 'アポ日を過ぎて結果が未入力', f: l => l['商談ステータス'] === '商談前' && l['アポ日時'] && l['アポ日時'].slice(0, 10) < t0, sort: (a, b) => toD(a['アポ日時']) - toD(b['アポ日時']) },
+    { k: 'consider', c: 'yel', t: '検討中のフォロー', d: `見積・検討中で${fol}日以上更新なし`, f: l => l['ステータス'] === '商談中' && (now - toD(l['更新日時'])) / 864e5 >= fol, sort: (a, b) => toD(a['更新日時']) - toD(b['更新日時']) },
+    { k: 'long', c: '', t: '長期追客', d: `架電${maxCall}回以上で追客中`, f: l => l['ステータス'] === '追客中' && num(l['架電回数']) >= maxCall, sort: (a, b) => num(b['架電回数']) - num(a['架電回数']) },
+  ].map(a => Object.assign(a, { list: L.filter(a.f).sort(a.sort) }));
+}
+
+// ====================== 描画 ======================
+function render() {
+  document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.p === UI.page));
+  ['home', 'list', 'ana', 'set'].forEach(p => $('#p-' + p).hidden = p !== UI.page);
+  const A = alerts();
+  const urgent = A.filter(a => ['new_red', 'new_yel', 'over', 'nores'].includes(a.k)).reduce((s, a) => s + a.list.length, 0);
+  $('#navBadge').style.display = urgent ? '' : 'none'; $('#navBadge').textContent = urgent;
+  if (UI.page === 'home') renderHome(A);
+  if (UI.page === 'list') renderList();
+  if (UI.page === 'ana') renderAna();
+  if (UI.page === 'set') renderSet();
+}
+
+function stBadge(s) { return `<span class="st st-${esc(s)}">${esc(s)}</span>`; }
+
+// 行の色：重複＝黒塗り、失注・NG・ツブレ・断り・対象外＝グレーアウト
+// 進捗表の最新の商談結果（商談再訪結果があればそちら）
+const lastRes = l => String(l['進捗_再訪結果'] || l['進捗_商談結果'] || '');
+const isLost = l => ['失注', '断り', '対象外'].includes(l['ステータス']) || ['失注', 'ツブレ'].includes(l['商談ステータス']) || /NG|失注|ツブレ/i.test(String(lastRes(l)));
+const rowCls = l => l['ステータス'] === '重複' ? 'dup' : isLost(l) ? 'lost' : '';
+function leadRows(list, cols) {
+  if (!list.length) return `<div class="empty">該当するリードはありません</div>`;
+  const C = {
+    recv: ['リード取得日', l => `${md(l['受信日時'])}`],
+    wait: ['経過', l => l['ステータス'] === '未対応' ? `<span class="${l._wait >= num(D.settings['初回架電の警告(分)']) ? 'red b' : l._wait >= num(D.settings['初回架電の目標(分)']) ? 'yel b' : ''}">${l._wait <= 0 ? '受付時間前' : ago(l._wait)}</span>` : (l._resp != null ? `<span class="sub" title="初回架電までの時間">${ago(l._resp)}</span>` : '')],
+    camp: ['訴求', l => `<span class="sm" title="${esc(campName(l['訴求']))}">${esc(campName(l['訴求']))}</span>`],
+    name: ['氏名', l => `<b>${esc(l['氏名'])}</b>${l._notHouse ? '<span class="nh">戸建て以外</span>' : ''}${l._areaOut ? '<span class="nh">エリア外</span>' : ''}`],
+    pref: ['都道府県', l => esc(l['都道府県'])],
+    tel: ['電話番号', l => esc(l['電話番号'])],
+    st: ['ステータス', l => stBadge(l['ステータス'])],
+    cnt: ['架電', l => num(l['架電回数']) || ''],
+    last: ['最終結果', l => `<span class="sm" title="${esc(String(l['最終架電結果']))}">${esc(String(l['最終架電結果']).replace(/^[^/]*\//, ''))}</span>`],
+    lastAt: ['最終架電', l => md(String(l['最終架電日時']))],
+    hist: ['架電履歴', l => l._hist.length ? `<div class="hist">${l._hist.map(g => `<div title="${esc(g[3] || '')}">${md(String(g[0]))} ${esc(g[5] || g[4])}</div>`).join('')}</div>` : ''],
+    memo: ['備考メモ', l => `<div class="memoCell" data-memo="${l['リードID']}" title="クリックして入力">${l['メモ'] ? esc(l['メモ']) : '<span class="sub">＋ 入力</span>'}</div>`],
+    next: ['次回架電', l => { const d = toD(l['次回架電予定']); return d ? `<span class="${d < Date.now() ? 'red b' : ''}">${md(l['次回架電予定'])}</span>` : ''; }],
+    apo: ['アポ日時', l => md(l['アポ日時'])],
+    deal: ['商談', l => esc(l['商談ステータス'])],
+    dres: ['商談結果', l => `<span class="sm">${esc(l['進捗_商談結果'] || '')}</span>`], // 進捗表の商談結果（アームズ様）
+    v1d: ['初訪日', l => md(String(l['進捗_初訪日'] || '').slice(0, 10))],
+    v1r: ['初訪結果', l => `<span class="sm">${esc(l['進捗_訪問結果'] || '')}</span>`],
+    invd: ['調査日', l => md(String(l['進捗_調査日'] || '').slice(0, 10))],
+    invr: ['調査結果', l => `<span class="sm">${esc(l['進捗_調査結果'] || '')}</span>`],
+    rvd: ['商談再訪日', l => md(String(l['進捗_再訪日'] || '').slice(0, 10))],
+    rvr: ['商談再訪結果', l => `<span class="sm">${esc(l['進捗_再訪結果'] || '')}</span>`],
+    dd: ['商談日', l => md(String(l['進捗_商談日'] || '').slice(0, 10))],
+    owner: ['担当', l => esc(l['担当者'])],
+    sales: ['売上', l => l._won ? yen(l._sales) : ''],
+  };
+  cols.filter(c => c.startsWith('q:')).forEach(c => { const q = c.slice(2); C[c] = [`<span title="${esc(q)}">${esc(shortQ(q))}</span>`, l => `<span class="sm">${esc(l._ans[q] || '')}</span>`]; });
+  return `<div class="tblwrap"><table><thead><tr>${cols.map(c => `<th>${C[c][0]}</th>`).join('')}</tr></thead><tbody>${list.map(l => `<tr class="click ${rowCls(l)}" data-id="${l['リードID']}">${cols.map(c => `<td${c === 'camp' ? ' class="cmp"' : ''}>${C[c][1](l)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+}
+
+// 進捗ビュー：左＝アポ取得進捗（架電〜アポ取得）、右＝商談進捗（アポ後）。1行で両方を追える
+function progRows(list, showCamp) {
+  if (!list.length) return `<div class="empty">該当するリードはありません</div>`;
+  const lead = [['リード取得日', l => md(l['受信日時'])], ['氏名', l => `<b>${esc(l['氏名'])}</b>${l._notHouse ? '<span class="nh">戸建て以外</span>' : ''}${l._areaOut ? '<span class="nh">エリア外</span>' : ''}`]]
+    .concat(showCamp ? [['訴求', l => `<span class="sm">${esc(campName(l['訴求']))}</span>`]] : []).concat([['電話番号', l => esc(l['電話番号'])], ['ステータス', l => stBadge(l['ステータス'])]]);
+  const deal = [
+    ['商談', l => l['商談ステータス'] ? `<span class="dst ${esc(l['商談ステータス'])}">${esc(l['商談ステータス'])}</span>` : (l._apo ? '' : '<span class="sub sm">―</span>')],
+  ].concat(D.leads.some(l => l['進捗_商談結果']) ? [['商談結果', l => `<span class="sm">${esc(l['進捗_商談結果'] || '')}</span>`]] : []).concat([
+    ['訪問・商談日', l => md(String(l['アポ日時'] || l['商談実施日'] || ''))],
+    ['営業担当', l => esc(l['営業担当'])],
+    ['商材', l => `<span class="sm">${esc(l['商材'])}</span>`],
+    ['売上', l => l._won ? `<b>${yen(l._sales)}</b>` : ''],
+    ['商談メモ', l => `<div class="sm" style="max-width:240px;white-space:normal">${esc(l['進捗メモ'] || '')}</div>`],
+  ]);
+  const callc = [
+    ['架電', l => num(l['架電回数']) || ''],
+    ['最終結果', l => `<span class="sm">${esc(String(l['最終架電結果']).replace('/', '・'))}</span>`],
+    ['最終架電日時', l => md(String(l['最終架電日時']))],
+    ['架電者', l => esc(l['担当者'])],
+    ['アポ取得日', l => l._apo ? `<b>${md(String(l['アポ獲得日'] || ''))}</b>` : ''],
+    ['架電履歴', l => l._hist.length ? `<div class="hist">${l._hist.map(g => `<div>${md(String(g[0]))} ${esc(g[5] || g[4])}${g[3] ? `<span class="sub">（${esc(g[3])}）</span>` : ''}</div>`).join('')}</div>` : ''],
+    ['備考メモ', l => `<div class="memoCell" data-memo="${l['リードID']}" title="クリックして入力">${l['メモ'] ? esc(l['メモ']) : '<span class="sub">＋ 入力</span>'}</div>`],
+  ];
+  const th = (a, cls) => a.map((c, i) => `<th class="${cls}${i === 0 && cls ? ' first' : ''}">${c[0]}</th>`).join('');
+  const td = (l, a, cls) => a.map((c, i) => `<td class="${cls}${i === 0 && cls ? ' first' : ''}">${c[1](l)}</td>`).join('');
+  return `<div class="tblwrap prog"><table><thead>
+    <tr><th class="g lead" colspan="${lead.length}">リード</th><th class="g call" colspan="${callc.length}">アポ取得進捗</th><th class="g deal" colspan="${deal.length}">商談進捗</th></tr>
+    <tr>${th(lead, '')}${th(callc, 'cl')}${th(deal, 'dl')}</tr></thead>
+    <tbody>${list.map(l => `<tr class="click ${rowCls(l)}" data-id="${l['リードID']}">${td(l, lead, '')}${td(l, callc, 'cl')}${td(l, deal, 'dl')}</tr>`).join('')}</tbody></table></div>`;
+}
+
+const shortQ = q => { const t = q.replace(/^Q(\d+)[.．:：、]?\s*/, 'Q$1 ').replace(/を教えてください|を教えて下さい|ですか[？?]|[は]?[？?]$/g, ''); return t.length > 14 ? t.slice(0, 14) + '…' : t; };
+// 発生月のアポ数：アポを取った月で数える。D.apoFixed があれば、その日までは固定値＋それより後のアポ（絞り込みなしのときだけ）
+const apoMonOf = l => String(l['アポ獲得日'] || l['アポ日時'] || '').slice(0, 7);
+function apoByEvent(ym, leads, filtered) {
+  const n = leads.filter(l => l._apo && apoMonOf(l) === ym).length;
+  const AF = D.apoFixed;
+  if (!AF || filtered || ym > AF.until.slice(0, 7)) return n;
+  return num(AF.months[ym]) + leads.filter(l => l._apo && apoMonOf(l) === ym && String(l['アポ獲得日'] || l['アポ日時']).slice(0, 10) > AF.until).length;
+}
+function renderHome(A) {
+  const L = D.leads, ym = today().slice(0, 7), t0 = today();
+  const mon = L.filter(l => l._ym === ym), m = metrics(mon, costOf([ym], null));
+  const apoEv = apoByEvent(ym, L, false); // 今月のアポ＝今月アポを取った件数（発生月）
+  const dealEv = L.filter(l => l._dealDone && l._dealMon === ym).length; // 今月の商談＝今月商談した件数
+  const todayNew = L.filter(l => l['受信日時'].slice(0, 10) === t0).length;
+  const sel = UI.alert === 'all' ? null : A.find(a => a.k === UI.alert);
+  let list = sel ? sel.list : A.filter(a => !['new', 'long', 'apo'].includes(a.k)).flatMap(a => a.list.map(l => Object.assign(l, { _why: a.t, _c: a.c })));
+  const seen = new Set(); list = list.filter(l => !seen.has(l['リードID']) && seen.add(l['リードID']));
+  $('#p-home').innerHTML = `
+  <div class="grid kpis" style="margin-bottom:16px">
+    <div class="card kpi"><div class="l">今日の新着</div><div class="v">${todayNew}件</div></div>
+    <div class="card kpi"><div class="l">今月のリード</div><div class="v">${m.n}件</div><div class="s">有効 ${m.valid}件</div></div>
+    <div class="card kpi"><div class="l">今月のアポ</div><div class="v">${apoEv}件</div><div class="s">今月アポを取った件数</div></div>
+    <div class="card kpi"><div class="l">今月の商談</div><div class="v">${dealEv}件</div><div class="s">成約 ${m.won}件</div></div>
+    <div class="card kpi hl"><div class="l">今月の新規売上</div><div class="v">${yenS(m.sales)}</div><div class="s">粗利 ${yenS(m.gross)}${m.grossEst ? '（推定含む）' : ''}</div></div>
+  </div>
+  <h2>やること（アラート）</h2>
+  <div class="grid alerts">${A.map(a => `<div class="card al ${a.c} ${a.list.length ? '' : 'zero'} ${UI.alert === a.k ? 'on' : ''}" data-al="${a.k}"><div class="t">${a.t}</div><div class="n">${a.list.length}</div><div class="d">${a.d}</div></div>`).join('')}</div>
+  <h2>${sel ? esc(sel.t) + ' の一覧 <button class="btn sm" data-al="all">すべての要対応に戻す</button>' : '要対応のリード（未架電・期限切れ・止まっている追客・結果未入力・検討中フォロー）'}</h2>
+  ${sel ? leadRows(list, sel.k === 'apo' || sel.k === 'nores' ? ['apo', 'name', 'tel', 'camp', 'deal', 'owner', 'recv'] : ['recv', 'wait', 'name', 'tel', 'pref', 'camp', 'st', 'cnt', 'last', 'next', 'owner'])
+      : list.length ? `<div class="tblwrap"><table><thead><tr><th>理由</th><th>リード取得日</th><th>経過</th><th>氏名</th><th>電話番号</th><th>訴求</th><th>ステータス</th><th>架電</th><th>次回架電</th><th>アポ日時</th><th>担当</th></tr></thead><tbody>${list.map(l => `<tr class="click" data-id="${l['リードID']}"><td><span class="${l._c === 'red' ? 'red' : l._c === 'yel' ? 'yel' : ''} b sm">${esc(l._why)}</span></td><td>${md(l['受信日時'])}</td><td>${l['ステータス'] === '未対応' ? ago(Math.max(0, l._wait)) : ''}</td><td><b>${esc(l['氏名'])}</b></td><td>${esc(l['電話番号'])}</td><td class="sm">${esc(campName(l['訴求']))}</td><td>${stBadge(l['ステータス'])}</td><td>${num(l['架電回数']) || ''}</td><td>${md(l['次回架電予定'])}</td><td>${md(l['アポ日時'])}</td><td>${esc(l['担当者'])}</td></tr>`).join('')}</tbody></table></div>`
+      : '<div class="card empty">要対応のリードはありません 🎉</div>'}`;
+}
+
+// ---------------- リード一覧 ----------------
+function renderList() {
+  const F = UI.list, L = D.leads;
+  const owners = [...new Set(L.map(l => l['担当者']).filter(Boolean))].sort();
+  const camps = D.campaigns.slice().sort((a, b) => num(a['並び順']) - num(b['並び順']));
+  if (F.camp && !camps.some(c => c['訴求'] === F.camp)) F.camp = '';
+  const mons = [...new Set(L.map(l => l._ym))].sort().reverse();
+  const base = L.filter(l => (!F.camp || l['訴求'] === F.camp) && (!F.owner || l['担当者'] === F.owner) && (!F.from || l._ym >= F.from) && (!F.to || l._ym <= F.to)
+    && (!F.q || (l['氏名'] + l['電話番号'] + l['都道府県'] + l['メモ']).replace(/[-\s]/g, '').includes(F.q.replace(/[-\s]/g, ''))));
+  const cnt = {}; base.forEach(l => cnt[l['ステータス']] = (cnt[l['ステータス']] || 0) + 1);
+  const DRES = L.some(l => l['進捗_商談結果']) ? ['dres'] : []; // 進捗表を使う会社だけ「商談結果」列を出す
+  const TREE = statusTree(), node = TREE.find(n => n.k === F.st);
+  if (F.st && !node) F.st = '';
+  // 階層で「商談」以下（成約・失注・検討）を選んだときは、架電の列の代わりに進捗表の初訪〜商談の列を出す（アームズ様）
+  const DCOLS = D.dealRule && D.dealRule.dateField && ['deal', 'won', 'lost', 'cons'].includes(F.st);
+  let list = base.filter(l => (!node || node.f(l)) && (!F.apoOnly || l._apo));
+  const k = UI.sort.k, d = UI.sort.d;
+  list.sort((a, b) => String(a[k] || '').localeCompare(String(b[k] || '')) * d);
+  // 訴求タブ（未対応・期限切れの件数を赤バッジで）
+  const todo = c => L.filter(l => (!c || l['訴求'] === c) && (l['ステータス'] === '未対応' || (l['ステータス'] === '追客中' && toD(l['次回架電予定']) && toD(l['次回架電予定']) < Date.now()))).length;
+  const tab = (key, label, sub) => { const n = todo(key); return `<button class="ctab ${F.camp === key ? 'on' : ''}" data-camp="${esc(key)}">${esc(label)}${sub ? ` <span class="tag">${esc(sub)}</span>` : ''}${n ? `<span class="cbadge" title="未対応・再架電期限切れ">${n}</span>` : ''}</button>`; };
+  const tabs = `<div class="ctabs">${tab('', 'すべての訴求')}${camps.map(c => tab(c['訴求'], c['表示名'] || c['訴求'], c['状態'] && c['状態'] !== '配信中' ? c['状態'] : '')).join('')}</div>`;
+  // 訴求を選んでいるとき：トークスクリプト＋その訴求のアンケート項目を列に出す
+  let head = '', qcols = [];
+  if (F.camp) {
+    const c = CAMP(F.camp), all = L.filter(l => l['訴求'] === F.camp), m = metrics(all, 0);
+    qcols = [...new Set(all.flatMap(l => Object.keys(l._ans)))].map(q => 'q:' + q);
+    head = `<details class="campinfo" ${UI.list.info ? 'open' : ''}><summary>トークスクリプト・この訴求の成果を${UI.list.info ? '閉じる' : '開く'}</summary><div class="grid two" style="margin-bottom:6px;grid-template-columns:2fr 1fr">
+      <div class="card talk"><div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><h3 style="margin:0">トークスクリプト</h3><span class="sub sm">${esc(c['表示名'] || F.camp)}</span>${c['LP URL'] ? `<a class="sm" href="${esc(c['LP URL'])}" target="_blank">LPを見る</a>` : ''}<button class="btn sm" id="talkEdit" style="margin-left:auto">編集</button></div>
+        <div id="talkBox">${talkView(c)}</div></div>
+      <div class="card"><h3>この訴求の成果（全期間）</h3><div class="kv">
+        <div>リード / 有効</div><div><b>${m.n}</b> / ${m.valid}件</div>
+        <div>アポ</div><div><b>${m.apo}件</b>（アポ率 ${pct(m.apo, m.valid)}）</div>
+        <div>商談 / 成約</div><div>${m.deal} / <b>${m.won}件</b>（成約率 ${pct(m.won, m.deal)}）</div>
+        <div>新規売上</div><div><b>${yen(m.sales)}</b></div></div>
+        <div class="note"><a href="#" id="toAna">成果分析でくわしく見る →</a></div></div></div></details>`;
+  }
+  $('#p-list').innerHTML = `${tabs}${head}
+  <div class="filters">
+    <input id="fq" placeholder="氏名・電話番号・メモで検索" value="${esc(F.q)}" style="width:240px">
+    <select id="fowner"><option value="">すべての担当</option>${owners.map(o => `<option ${F.owner === o ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>
+    リード取得月 <select id="ffrom"><option value="">指定なし</option>${mons.map(m => `<option ${F.from === m ? 'selected' : ''}>${m}</option>`).join('')}</select>〜
+    <select id="fto"><option value="">指定なし</option>${mons.map(m => `<option ${F.to === m ? 'selected' : ''}>${m}</option>`).join('')}</select>
+    <select id="fsort">${[['受信日時', 'リード取得日'], ['最終架電日時', '最終架電日時'], ['次回架電予定', '次回架電予定'], ['アポ日時', 'アポ日時'], ['更新日時', '更新日時']].map(([v, t]) => `<option value="${v}" ${k === v ? 'selected' : ''}>${t}順</option>`).join('')}</select>
+    <button class="btn sm" id="fdir">${d < 0 ? '新しい順' : '古い順'}</button>
+<button class="btn sm" id="ftree" title="左のステータス階層の表示を切り替え">${F.tree === false ? '階層を表示' : '階層を隠す'}</button>
+    <label class="sm" style="display:inline-flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="fapo" ${F.apoOnly ? 'checked' : ''}>アポ取得したリードだけ</label>
+    <span class="seg" style="margin-left:auto"><button data-view="list" class="${F.view !== 'prog' ? 'on' : ''}">一覧</button><button data-view="prog" class="${F.view === 'prog' ? 'on' : ''}" title="左＝アポ取得進捗（架電〜アポ取得）、右＝商談進捗（アポ後）">進捗（アポ取得｜商談）</button></span>
+    <span class="sub sm">${list.length}件</span>
+  </div>
+  <div class="lwrap">${F.tree === false ? '' : `<div class="stree">${TREE.map(n => `<span class="chip ${(F.st || 'all') === n.k ? 'on' : ''}" data-st="${n.k === 'all' ? '' : n.k}" style="margin-left:${n.d * 12}px">${n.d ? '<span class="sub">∟</span> ' : ''}${esc(n.t)} <b>${base.filter(n.f).length}</b></span>`).join('')}</div>`}
+  <div class="lmain">${F.view === 'prog' ? progRows(list.slice(0, 500), !F.camp) : leadRows(list.slice(0, 500), DCOLS ? ['recv', 'wait', ...(F.camp ? [] : ['camp']), 'name', 'pref', 'tel', ...qcols, 'memo', 'v1d', 'v1r', 'invd', 'invr', 'dd', 'dres', 'rvd', 'rvr', 'deal', 'sales', 'owner'] : F.camp ? ['recv', 'wait', 'name', 'pref', 'tel', ...qcols, 'st', 'cnt', 'last', 'lastAt', 'hist', 'memo', 'next', 'apo', 'deal', ...DRES, 'sales', 'owner'] : ['recv', 'wait', 'camp', 'name', 'pref', 'tel', 'st', 'cnt', 'last', 'lastAt', 'hist', 'memo', 'next', 'apo', 'deal', ...DRES, 'sales', 'owner'])}
+  ${list.length > 500 ? '<div class="note">先頭500件を表示しています。絞り込んでください。</div>' : ''}</div></div>`;
+  const set = (id, key, ev = 'change') => $(id).addEventListener(ev, e => { F[key] = e.target.value; renderList(); if (id === '#fq') { $('#fq').focus(); $('#fq').setSelectionRange(99, 99); } });
+  set('#fq', 'q', 'input'); set('#fowner', 'owner'); set('#ffrom', 'from'); set('#fto', 'to');
+  $('#fsort').onchange = e => { UI.sort.k = e.target.value; renderList(); };
+  $('#fapo').onchange = e => { F.apoOnly = e.target.checked; renderList(); };
+  $('#ftree').onclick = () => { F.tree = F.tree === false; try { localStorage.setItem('tree' + NS, F.tree ? '1' : '0'); } catch (e) {} renderList(); };
+  const ci = document.querySelector('#p-list details.campinfo'); if (ci) ci.ontoggle = () => { F.info = ci.open; ci.querySelector('summary').textContent = 'トークスクリプト・この訴求の成果を' + (ci.open ? '閉じる' : '開く'); };
+  document.querySelectorAll('#p-list .seg button').forEach(b => b.onclick = () => { F.view = b.dataset.view; renderList(); });
+  $('#fdir').onclick = () => { UI.sort.d *= -1; renderList(); };
+  if (F.camp) {
+    $('#toAna').onclick = e => { e.preventDefault(); UI.ana.camp = F.camp; UI.page = 'ana'; render(); };
+    $('#talkEdit').onclick = () => editTalk(F.camp, $('#talkBox'), renderList);
+  }
+}
+function talkView(c) {
+  return c['トークスクリプト'] ? `<div class="memo talktxt">${esc(c['トークスクリプト'])}</div>` : '<div class="sub sm">この訴求のトークはまだ登録されていません。「編集」から登録できます（アンケートの回答に合わせた切り出し方・特典の説明・NGワードなど）。</div>';
+}
+function editTalk(camp, box, after) {
+  const c = CAMP(camp);
+  box.innerHTML = `<textarea id="talkTa" style="min-height:220px">${esc(c['トークスクリプト'] || '')}</textarea><p><button class="btn pri sm" id="talkSave">保存</button> <button class="btn sm" id="talkCancel">キャンセル</button></p>`;
+  $('#talkCancel').onclick = () => { box.innerHTML = talkView(c); };
+  $('#talkSave').onclick = async () => {
+    const v = $('#talkTa').value;
+    await call('api_saveTalk', camp, v);
+    c['トークスクリプト'] = v; toast('トークを保存しました'); after();
+  };
+}
+const ST_ORDER = ['未対応', '追客中', 'アポ獲得', '商談中', '成約', '失注', '断り', '対象外', '重複'];
+// ステータスの階層（全て → 無効／有効 → 追客中／アポ → 初訪NG／商談 → 成約／失注／検討 → ランク）
+// 商談の結果は進捗表の商談結果（O列）。進捗表がない会社・行は商談ステータスで判定
+const dealRes = l => {
+  const s = lastRes(l);
+  if (s) return /契約|成約/.test(s) ? '成約' : /NG|失注|キャンセル|ツブレ/i.test(s) ? '失注' : /検討/.test(s) ? '検討' : ''; // 商談結果のツブレは失注
+  const d = l['商談ステータス'];
+  return d === '成約' ? '成約' : d === '失注' ? '失注' : ['検討中', '現調・見積中'].includes(d) ? '検討' : '';
+};
+// 初訪NG＝進捗表の訪問結果が NG・ツブレ（進捗表がないときは商談ステータスのツブレ）。それ以外のアポは商談
+const visitNG = l => { const v = String(l['進捗_訪問結果'] || ''); return v ? /NG|ツブレ/i.test(v) : l['商談ステータス'] === 'ツブレ'; };
+const rankOf = l => { const r = String(l['進捗_ランク'] || '').toUpperCase().match(/[ABC]/); return r ? r[0] : ''; };
+const isInvalid = l => !l._valid; // 有効・無効はリード情報（会社ごとの定義＝サーバーの validRule）で決める
+function statusTree() {
+  const DF = D.dealRule && D.dealRule.dateField;
+  // アポを取ったリードはリード情報にかかわらず有効に数える（アポ数をそろえるため）
+  const val = l => l._apo || !isInvalid(l), fol = l => val(l) && !l._apo, ap = l => l._apo;
+  if (DF) {
+    // アームズ様：商談＝進捗表M列（商談日）あり／初訪NG＝商談日なし・訪問結果NGかツブレ／商談前＝それ以外で進捗表にあるアポ／進捗表なし＝架電シートでアポだが進捗表にまだない
+    const vr = l => String(l['進捗_訪問結果'] || '').trim();
+    const dl = l => ap(l) && !!l[DF], fng = l => ap(l) && !l[DF] && /NG|ツブレ/i.test(vr(l)), pre = l => ap(l) && !l[DF] && !!vr(l) && !fng(l), nop = l => ap(l) && !l[DF] && !vr(l);
+    // 進捗表の結果（再訪結果を優先）か、商談ステータス（架電シート）のどちらかで成約・失注なら、そちらに入れる
+    const res = l => { const s = lastRes(l), d = l['商談ステータス']; return /契約|成約/.test(s) || d === '成約' ? '成約' : /NG|失注|キャンセル|ツブレ/i.test(s) || d === '失注' || d === 'ツブレ' ? '失注' : '検討'; };
+    return [
+      { k: 'all', t: '全て', d: 0, f: l => true },
+      { k: 'inv', t: '無効', d: 1, f: l => !val(l) },
+      { k: 'val', t: '有効', d: 1, f: val },
+      { k: 'fol', t: '追客中', d: 2, f: fol },
+      { k: 'apo', t: 'アポ', d: 2, f: ap },
+      { k: 'fng', t: '初訪NG', d: 3, f: fng },
+      { k: 'pre', t: '商談前', d: 3, f: pre },
+      { k: 'nop', t: '進捗表なし', d: 3, f: nop },
+      { k: 'deal', t: '商談', d: 3, f: dl },
+      { k: 'won', t: '成約', d: 4, f: l => dl(l) && res(l) === '成約' },
+      { k: 'lost', t: '失注', d: 4, f: l => dl(l) && res(l) === '失注' },
+      { k: 'cons', t: '検討', d: 4, f: l => dl(l) && res(l) === '検討' },
+    ].filter(n => n.k !== 'nop' || (D.leads || []).some(nop));
+  }
+  const dl = l => ap(l) && !visitNG(l), cons = l => dl(l) && dealRes(l) === '検討';
+  return [
+    { k: 'all', t: '全て', d: 0, f: l => true },
+    { k: 'inv', t: '無効', d: 1, f: l => !val(l) },
+    { k: 'val', t: '有効', d: 1, f: val },
+    { k: 'fol', t: '追客中', d: 2, f: fol },
+    { k: 'apo', t: 'アポ', d: 2, f: ap },
+    { k: 'fng', t: '初訪NG', d: 3, f: l => ap(l) && visitNG(l) },
+    { k: 'deal', t: '商談', d: 3, f: dl },
+    { k: 'won', t: '成約', d: 4, f: l => dl(l) && dealRes(l) === '成約' },
+    { k: 'lost', t: '失注', d: 4, f: l => dl(l) && dealRes(l) === '失注' },
+    { k: 'cons', t: '検討', d: 4, f: cons },
+    { k: 'pre', t: '商談前', d: 4, f: l => dl(l) && !dealRes(l) },
+  ];
+}
+
+// ---------------- 集計 ----------------
+// 訴求の媒体は「Meta・Google・Yahoo」のように複数のことがある
+const hasMedia = (v, m) => String(v || '').split(/[・,、\/]/).map(x => x.trim()).includes(m);
+function costOf(months, camp, media) {
+  return D.adcost.filter(c => months.includes(c.ym) && (!camp || c.camp === camp) && (!media || hasMedia(CAMP(c.camp)['媒体'], media))).reduce((s, c) => s + c.cost, 0);
+}
+function metrics(L, cost) {
+  const m = { n: L.length, dup: 0, invalid: 0, called: 0, conn: 0, apo: 0, deal: 0, won: 0, lost: 0, cancel: 0, decline: 0, sales: 0, gross: 0, grossEst: false, resp: [], cost: cost || 0, validConn: 0, valid: 0 };
+  L.forEach(l => {
+    const s = l['ステータス'];
+    if (l._valid) m.valid++;
+    if (s === '重複') { m.dup++; return; }
+    if (s === '対象外' || l._notHouse) m.invalid++;
+    if (s === '断り') m.decline++;
+    if (num(l['架電回数']) > 0) m.called++;
+    if (l['接続済'] === true || l['接続済'] === 'TRUE' || l['接続済'] === 'true') m.conn++;
+    if (l._apo) m.apo++;
+    if (l._valid && (l['接続済'] === true || l['接続済'] === 'TRUE' || l['接続済'] === 'true')) m.validConn++;
+    if (l._dealDone) m.deal++;
+    if (l['商談ステータス'] === 'ツブレ') m.cancel++;
+    if (l._won) { m.won++; m.sales += l._sales; m.gross += l._gross; if (l._grossEst) m.grossEst = true; }
+    if (s === '失注' || l['商談ステータス'] === '失注') m.lost++;
+    if (l._resp != null) m.resp.push(l._resp);
+  });
+  // m.valid は l._valid の件数（会社ごとの定義）
+  m.uniq = m.n - m.dup;
+  m.profit = m.gross - m.cost;
+  m.respMed = m.resp.length ? m.resp.sort((a, b) => a - b)[Math.floor(m.resp.length / 2)] : null;
+  return m;
+}
+const div = (a, b) => b ? a / b : null;
+
+function monthsBetween(f, t) { const out = []; let [y, m] = f.split('-').map(Number); const [ty, tm] = t.split('-').map(Number); while (y < ty || (y === ty && m <= tm)) { out.push(`${y}-${p2(m)}`); m++; if (m > 12) { m = 1; y++; } if (out.length > 60) break; } return out; }
+
+// ---------------- 成果分析 ----------------
+let charts = [];
+function renderAna() {
+  const F = UI.ana;
+  const allMons = [...new Set(D.leads.map(l => l._ym).concat(D.adcost.map(c => c.ym)))].sort();
+  const months = monthsBetween(F.from, F.to);
+  const camps = D.campaigns.slice().sort((a, b) => num(a['並び順']) - num(b['並び順']));
+  const medias = [...new Set(camps.flatMap(c => String(c['媒体'] || '').split(/[・,、\/]/).map(x => x.trim())).filter(Boolean))];
+  const inF = l => months.includes(l._ym) && (!F.camp || l['訴求'] === F.camp) && (!F.media || hasMedia(l._media, F.media));
+  const L = D.leads.filter(inF);
+  const M = metrics(L, costOf(months, F.camp, F.media));
+  const row = (label, m, extra = '') => `<tr ${extra}><td>${label}</td>
+    <td class="num">${yen(m.cost)}</td><td class="num">${m.n}</td><td class="num">${m.valid}</td><td class="num">${pct(m.valid, m.n)}</td><td class="num cpa">${yen(div(m.cost, m.n))}</td><td class="num">${yen(div(m.cost, m.valid))}</td>
+    <td class="num">${pct(m.called, m.uniq)}</td><td class="num">${pct(m.conn, m.called)}</td>
+    <td class="num b">${m.apo}</td><td class="num">${pct(m.apo, m.valid)}</td><td class="num cpa">${yen(div(m.cost, m.apo))}</td>
+    <td class="num">${m.deal}</td><td class="num">${pct(m.deal, m.apo)}</td>
+    <td class="num b">${m.won}</td><td class="num">${pct(m.won, m.deal)}</td><td class="num cpa">${yen(div(m.cost, m.won))}</td>
+    <td class="num b">${yen(m.sales)}</td><td class="num">${yen(m.gross)}${m.grossEst ? '<span class="sub">*</span>' : ''}</td><td class="num ${m.profit < 0 ? 'red' : ''}">${m.cost ? yen(m.profit) : '-'}</td><td class="num">${m.cost ? (m.sales / m.cost * 100).toFixed(0) + '%' : '-'}</td></tr>`;
+  const thead = first => `<thead><tr><th>${first}</th><th class="num">広告費</th><th class="num">リード</th><th class="num">有効</th><th class="num">有効率</th><th class="num cpa">CPL</th><th class="num">有効CPL</th><th class="num">架電率</th><th class="num">接続率</th><th class="num">アポ</th><th class="num">アポ率</th><th class="num cpa">アポ単価</th><th class="num">商談</th><th class="num">商談実施率</th><th class="num">成約</th><th class="num">成約率</th><th class="num cpa">成約単価</th><th class="num">売上</th><th class="num">粗利</th><th class="num">粗利−広告費</th><th class="num">ROAS</th></tr></thead>`;
+  const byCamp = camps.filter(c => !F.camp || c['訴求'] === F.camp).filter(c => !F.media || hasMedia(c['媒体'], F.media))
+    .filter(c => !F.live || c['出稿'] === '出稿中') // 「出稿中だけ」：QuanteeADで昨日・今日に費用が出ている訴求
+    .map(c => ({ c, m: metrics(L.filter(l => l['訴求'] === c['訴求']), costOf(months, c['訴求'])) })).filter(x => x.m.n || x.m.cost);
+  const hasLive = camps.some(c => c['出稿']);
+  // 出稿中だけに絞ったときの合計は、表に出ている訴求だけで計算する
+  const liveSet = {}; byCamp.forEach(x => (liveSet[x.c['訴求']] = true));
+  const Mtab = F.live ? metrics(L.filter(l => liveSet[l['訴求']]), byCamp.reduce((a, x) => a + x.m.cost, 0)) : M;
+  const inCM = l => (!F.camp || l['訴求'] === F.camp) && (!F.media || hasMedia(l._media, F.media));
+  // 月別：リード取得月で見る（そのリードがあとでアポ等になった数）／発生月で見る（アポ・商談・成約が起きた月で数える）
+  const evMon = (l, ...ks) => { for (const k of ks) { const v = String(l[k] || ''); if (v) return v.slice(0, 7); } return ''; };
+  const byMon = months.map(ym => {
+    const m = metrics(D.leads.filter(l => l._ym === ym && inCM(l)), costOf([ym], F.camp, F.media));
+    if (F.basis !== 'recv') {
+      const L2 = D.leads.filter(inCM);
+      const won = L2.filter(l => l._won && evMon(l, '成約日', '商談実施日', 'アポ日時') === ym);
+      m.apo = apoByEvent(ym, L2, !!(F.camp || F.media)); // 決まった日までは固定値（訴求・媒体で絞ったときはシステムの数）
+      m.deal = L2.filter(l => l._dealDone && l._dealMon === ym).length;
+      m.won = won.length; m.sales = won.reduce((s, l) => s + l._sales, 0); m.gross = won.reduce((s, l) => s + l._gross, 0);
+      m.grossEst = won.some(l => l._grossEst); m.profit = m.gross - m.cost;
+    }
+    return { ym, m };
+  });
+  // 架電スピード別
+  const SP = [['5分以内', 0, 5], ['5〜30分', 5, 30], ['30分〜1時間', 30, 60], ['1〜3時間', 60, 180], ['3時間〜当日', 180, 1440], ['翌日以降', 1440, 1e9]];
+  const valid = L.filter(l => l._valid);
+  const sp = SP.map(([t, a, b]) => { const g = valid.filter(l => l._resp != null && l._resp >= a && l._resp < b); return { t, n: g.length, apo: g.filter(l => l._apo).length }; });
+  // NG理由
+  const tally = (arr) => { const o = {}; arr.forEach(v => { if (v) o[v] = (o[v] || 0) + 1; }); return Object.entries(o).sort((a, b) => b[1] - a[1]); };
+  const lost = tally(L.filter(l => l['ステータス'] === '失注').map(l => l['失注理由']));
+  const decl = tally(L.filter(l => l['ステータス'] === '断り').map(l => l['断り・対象外理由']));
+  const inval = tally(L.filter(l => l['ステータス'] === '対象外').map(l => l['断り・対象外理由']));
+  const prods = tally(L.filter(l => l._won).map(l => l['商材'] || '未入力'));
+  const bars = (arr, cls = '', tot) => { tot = tot || arr.reduce((s, x) => s + x[1], 0); const mx = Math.max(1, ...arr.map(x => x[1])); return arr.length ? arr.map(([k, v]) => `<div class="bar ${cls}"><div class="lb" title="${esc(k)}">${esc(k)}</div><div class="tr"><div class="fl" style="width:${v / mx * 100}%"></div></div><div class="vl">${v}件 ${pct(v, tot)}</div></div>`).join('') : '<div class="sub sm">データなし</div>'; };
+  // 架電者別（ログから）
+  const inLead = new Set(L.map(l => l['リードID']));
+  const byCaller = {};
+  D.logs.filter(g => g[2] === '架電' && inLead.has(g[1])).forEach(g => { const c = g[3] || '不明'; const o = byCaller[c] = byCaller[c] || { calls: 0, leads: new Set(), conn: 0, apo: 0 }; o.calls++; o.leads.add(g[1]); if (g[4] === 'アポ') o.apo++; });
+  L.filter(l => l['接続済'] === true || l['接続済'] === 'TRUE').forEach(l => { const c = l['担当者']; if (byCaller[c]) byCaller[c].conn++; });
+  const wonBy = {}; L.filter(l => l._won).forEach(l => { const c = l['アポ獲得者'] || '不明'; wonBy[c] = wonBy[c] || { won: 0, sales: 0 }; wonBy[c].won++; wonBy[c].sales += l._sales; });
+  // 何回目でアポ
+  const callNo = tally(L.filter(l => l._apoCallNo).map(l => l._apoCallNo >= 6 ? '6回目以降' : l._apoCallNo + '回目')).sort((a, b) => a[0].localeCompare(b[0]));
+  // 都道府県
+  const prefs = {}; valid.forEach(l => { const p = l['都道府県'] || '不明'; const o = prefs[p] = prefs[p] || { n: 0, apo: 0, won: 0, sales: 0 }; o.n++; if (l._apo) o.apo++; if (l._won) { o.won++; o.sales += l._sales; } });
+  // 回答別（訴求を選んだときだけ）
+  let ansHtml = '<div class="sub sm">上の「訴求」を1つ選ぶと、アンケートの回答ごとのアポ率・成約率が出ます。</div>';
+  if (F.camp) {
+    const qs = {}; valid.forEach(l => Object.entries(l._ans).forEach(([q, a]) => { const o = (qs[q] = qs[q] || {})[a] = (qs[q] || {})[a] || { n: 0, apo: 0, won: 0 }; o.n++; if (l._apo) o.apo++; if (l._won) o.won++; }));
+    ansHtml = Object.entries(qs).map(([q, as]) => `<div style="margin-bottom:14px"><div class="b sm" style="margin-bottom:4px">${esc(q)}</div><table><thead><tr><th>回答</th><th class="num">有効リード</th><th class="num">アポ</th><th class="num">アポ率</th><th class="num">成約</th></tr></thead><tbody>${Object.entries(as).sort((a, b) => b[1].n - a[1].n).map(([a, o]) => `<tr><td>${esc(a)}</td><td class="num">${o.n}</td><td class="num">${o.apo}</td><td class="num b">${pct(o.apo, o.n)}</td><td class="num">${o.won}</td></tr>`).join('')}</tbody></table></div>`).join('') || '<div class="sub sm">回答データがありません</div>';
+  }
+  const fun = [['リード', M.n], ['有効リード', M.valid], ['本人と接続', M.validConn], ['アポ', M.apo], [(D.dealRule && D.dealRule.label) || '商談実施', M.deal], ['成約', M.won]];
+  const funMax = Math.max(1, M.n);
+
+  $('#p-ana').innerHTML = `
+  <div class="filters">
+    リード取得月 <select id="afrom">${allMons.map(m => `<option ${F.from === m ? 'selected' : ''}>${m}</option>`).join('')}</select>〜
+    <select id="ato">${allMons.map(m => `<option ${F.to === m ? 'selected' : ''}>${m}</option>`).join('')}</select>
+    <button class="btn sm" data-q="this">今月</button><button class="btn sm" data-q="last">先月</button><button class="btn sm" data-q="all">全期間</button>
+    <select id="acamp"><option value="">すべての訴求</option>${camps.map(c => `<option value="${esc(c['訴求'])}" ${F.camp === c['訴求'] ? 'selected' : ''}>${esc(c['表示名'] || c['訴求'])}</option>`).join('')}</select>
+    <select id="amedia"><option value="">すべての媒体</option>${medias.map(m => `<option ${F.media === m ? 'selected' : ''}>${esc(m)}</option>`).join('')}</select>
+  </div>
+  <div class="note">※ その期間に<b>取得したリード</b>が、その後アポ・商談・成約にどれだけつながったかで集計しています（リード起点）。広告費は「設定」で月×訴求ごとに入力した金額です。${M.grossEst ? `粗利の * は未入力分を売上×${D.settings['粗利率の初期値(%)']}%で推定。` : ''}</div>
+  <div class="grid kpis" style="margin:12px 0">
+    <div class="card kpi"><div class="l">広告費</div><div class="v">${yenS(M.cost)}</div></div>
+    <div class="card kpi"><div class="l">リード / 有効</div><div class="v">${M.n} / ${M.valid}</div><div class="s">CPL ${yen(div(M.cost, M.n))}・有効CPL ${yen(div(M.cost, M.valid))}</div></div>
+    <div class="card kpi"><div class="l">アポ</div><div class="v">${M.apo}件</div><div class="s">アポ率 ${pct(M.apo, M.valid)}・単価 ${yen(div(M.cost, M.apo))}</div></div>
+    <div class="card kpi"><div class="l">商談 / 成約</div><div class="v">${M.deal} / ${M.won}</div><div class="s">成約率 ${pct(M.won, M.deal)}・成約単価 ${yen(div(M.cost, M.won))}</div></div>
+    <div class="card kpi hl"><div class="l">新規売上</div><div class="v">${yenS(M.sales)}</div><div class="s">ROAS ${M.cost ? (M.sales / M.cost * 100).toFixed(0) + '%' : '-'}</div></div>
+    <div class="card kpi hl"><div class="l">新規粗利</div><div class="v">${yenS(M.gross)}</div><div class="s">${M.grossEst ? '推定を含む' : '入力値'}</div></div>
+    <div class="card kpi hl"><div class="l">粗利 − 広告費</div><div class="v" style="color:${M.profit < 0 ? '#ffb4ab' : '#b7f5c4'}">${M.cost ? yenS(M.profit) : '-'}</div><div class="s">粗利ROI ${M.cost ? (M.profit / M.cost * 100).toFixed(0) + '%' : '-'}</div></div>
+    <div class="card kpi"><div class="l">初回架電までの時間</div><div class="v">${M.respMed != null ? ago(M.respMed) : '-'}</div><div class="s">中央値（受付時間内換算）</div></div>
+  </div>
+  <h2>月別の成果</h2>
+  <div class="filters" style="margin:4px 0"><span class="seg"><button data-basis="event" class="${F.basis !== 'recv' ? 'on' : ''}">発生月で見る</button><button data-basis="recv" class="${F.basis === 'recv' ? 'on' : ''}">リード取得月で見る</button></span>
+    <span class="sub sm">${F.basis !== 'recv' ? 'アポ＝アポを取った月、商談＝商談した月、成約・売上＝成約した月で数えます（リード数・広告費はリード取得月）。率は目安です。' + (D.apoFixed ? ` ${md(D.apoFixed.until)}までのアポ数は、それまでの管理の数字で固定しています（訴求・媒体で絞ったときはシステムの数え方）。` : '') : 'その月に取得したリードが、あとでアポ・商談・成約になった数です。'}</span></div>
+  <div class="tblwrap"><table>${thead(F.basis !== 'recv' ? '月' : 'リード取得月')}<tbody>${byMon.map(x => row(x.ym, x.m)).join('')}</tbody></table></div>
+  <div class="grid two">
+    <div class="card"><h3>ファネル</h3>${fun.map(([k, v], i) => `<div class="bar funnel"><div class="lb">${k}</div><div class="tr"><div class="fl" style="width:${v / funMax * 100}%"></div></div><div class="vl">${v}件${i ? ' <span class="sub">' + pct(v, fun[i - 1][1]) + '</span>' : ''}</div></div>`).join('')}<div class="note">右の％は1つ前の段階からの移行率。有効リード＝${esc(D.validRule.label)}</div></div>
+    <div class="card"><h3>月別推移</h3><canvas id="chMon" height="200"></canvas></div>
+  </div>
+  <h2 style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">訴求別の成果${hasLive ? ` <span class="seg" style="font-size:13px;font-weight:400"><button data-live="" class="${F.live ? '' : 'on'}">すべて</button><button data-live="1" class="${F.live ? 'on' : ''}" title="QuanteeADで昨日・今日に広告費が出ている訴求だけ">出稿中だけ</button></span>` : ''}</h2>
+  <div class="tblwrap"><table>${thead('訴求')}<tbody>${byCamp.map(x => row(`<b>${esc(x.c['表示名'] || x.c['訴求'])}</b>${x.c['出稿'] ? ` <span class="tag ${x.c['出稿'] === '出稿中' ? 'live' : 'stop'}" title="QuanteeADで昨日・今日に費用が出ているか">${esc(x.c['出稿'])}</span>` : ''} <span class="tag">${esc(x.c['媒体'] || '')}</span>${x.c['状態'] && x.c['状態'] !== '配信中' ? ` <span class="tag">${esc(x.c['状態'])}</span>` : ''}`, x.m)).join('')}${row(F.live ? '合計（出稿中）' : '合計', Mtab, 'class="total"')}</tbody></table></div>
+  <h2>NG理由（なぜ成果にならなかったか）</h2>
+  <div class="grid three">
+    <div class="card"><h3>失注理由 <span class="sub sm">商談後</span></h3>${bars(lost, 'ng')}</div>
+    <div class="card"><h3>断り理由 <span class="sub sm">架電時</span></h3>${bars(decl, 'ng')}</div>
+    <div class="card"><h3>対象外の理由 <span class="sub sm">無効リード</span></h3>${bars(inval, 'ng')}</div>
+  </div>
+  <h2>アポを取るための分析</h2>
+  <div class="grid three">
+    <div class="card"><h3>初回架電の速さ別 アポ率</h3><table><thead><tr><th>初回架電まで</th><th class="num">リード</th><th class="num">アポ</th><th class="num">アポ率</th></tr></thead><tbody>${sp.map(x => `<tr><td>${x.t}</td><td class="num">${x.n}</td><td class="num">${x.apo}</td><td class="num b">${pct(x.apo, x.n)}</td></tr>`).join('')}<tr><td>未架電</td><td class="num">${valid.filter(l => l._resp == null).length}</td><td></td><td></td></tr></tbody></table><div class="note">受付時間外のリードは翌開始時刻から計算</div></div>
+    <div class="card"><h3>何回目の架電でアポが取れたか</h3>${bars(callNo)}<div class="note">何回まで追客すべきかの判断材料</div></div>
+    <div class="card"><h3>成約した商材</h3>${bars(prods)}</div>
+  </div>
+  <div class="grid two" style="margin-top:12px">
+    <div class="card"><h3>架電者別</h3><table><thead><tr><th>架電者</th><th class="num">架電数</th><th class="num">対応リード</th><th class="num">アポ</th><th class="num">アポ率</th><th class="num">成約</th><th class="num">売上</th></tr></thead><tbody>${Object.entries(byCaller).sort((a, b) => b[1].calls - a[1].calls).map(([c, o]) => `<tr><td>${esc(c)}</td><td class="num">${o.calls}</td><td class="num">${o.leads.size}</td><td class="num">${o.apo}</td><td class="num b">${pct(o.apo, o.leads.size)}</td><td class="num">${(wonBy[c] || {}).won || 0}</td><td class="num">${yen((wonBy[c] || {}).sales || 0)}</td></tr>`).join('') || '<tr><td colspan="7" class="empty">架電記録がありません</td></tr>'}</tbody></table><div class="note">成約・売上はアポを取った人に計上</div></div>
+    <div class="card"><h3>営業担当別（訪問・商談）</h3><table><thead><tr><th>営業担当</th><th class="num">アポ</th><th class="num">商談実施</th><th class="num">成約</th><th class="num">成約率</th><th class="num">売上</th></tr></thead><tbody>${Object.entries(L.filter(l => l._apo).reduce((o, l) => { const k = l['営業担当'] || '未設定'; const x = o[k] = o[k] || { apo: 0, deal: 0, won: 0, sales: 0 }; x.apo++; if (l._dealDone) x.deal++; if (l._won) { x.won++; x.sales += l._sales; } return o; }, {})).sort((a, b) => b[1].sales - a[1].sales || b[1].apo - a[1].apo).map(([k, x]) => `<tr><td>${esc(k)}</td><td class="num">${x.apo}</td><td class="num">${x.deal}</td><td class="num">${x.won}</td><td class="num b">${pct(x.won, x.deal)}</td><td class="num">${yen(x.sales)}</td></tr>`).join('') || '<tr><td colspan="6" class="empty">データなし</td></tr>'}</tbody></table></div>
+    <div class="card"><h3>都道府県別</h3><div class="tblwrap" style="max-height:320px"><table><thead><tr><th>都道府県</th><th class="num">有効リード</th><th class="num">アポ</th><th class="num">アポ率</th><th class="num">成約</th><th class="num">売上</th></tr></thead><tbody>${Object.entries(prefs).sort((a, b) => b[1].n - a[1].n).map(([p, o]) => `<tr><td>${esc(p)}</td><td class="num">${o.n}</td><td class="num">${o.apo}</td><td class="num b">${pct(o.apo, o.n)}</td><td class="num">${o.won}</td><td class="num">${yen(o.sales)}</td></tr>`).join('')}</tbody></table></div></div>
+  </div>
+  <h2>アンケート回答別 ${F.camp ? '— ' + esc(campName(F.camp)) : ''}</h2>
+  <div class="card">${ansHtml}</div>`;
+
+  const sv = (id, k) => $(id).onchange = e => { F[k] = e.target.value; if (F.from > F.to) F.to = F.from; renderAna(); };
+  sv('#afrom', 'from'); sv('#ato', 'to'); sv('#acamp', 'camp'); sv('#amedia', 'media');
+  document.querySelectorAll('#p-ana [data-basis]').forEach(b => b.onclick = () => { F.basis = b.dataset.basis; renderAna(); });
+  document.querySelectorAll('#p-ana [data-live]').forEach(b => b.onclick = () => { F.live = !!b.dataset.live; renderAna(); });
+  document.querySelectorAll('[data-q]').forEach(b => b.onclick = () => {
+    const c = today().slice(0, 7); const [y, m] = c.split('-').map(Number); const last = m === 1 ? `${y - 1}-12` : `${y}-${p2(m - 1)}`;
+    if (b.dataset.q === 'this') F.from = F.to = c; if (b.dataset.q === 'last') F.from = F.to = last; if (b.dataset.q === 'all') { F.from = allMons[0]; F.to = c; }
+    renderAna();
+  });
+  charts.forEach(c => c.destroy()); charts = [];
+  if (window.Chart) {
+    charts.push(new Chart($('#chMon'), {
+      data: { labels: byMon.map(x => x.ym), datasets: [
+        { type: 'line', label: 'アポ率', data: byMon.map(x => x.m.valid ? +(x.m.apo / x.m.valid * 100).toFixed(1) : null), yAxisID: 'y2', borderColor: '#e8710a', backgroundColor: '#e8710a', order: 0 },
+        { type: 'bar', label: 'リード', data: byMon.map(x => x.m.n), backgroundColor: '#c6d4ff', order: 2 },
+        { type: 'bar', label: 'アポ', data: byMon.map(x => x.m.apo), backgroundColor: '#1f5eff', order: 1 },
+        { type: 'bar', label: '成約', data: byMon.map(x => x.m.won), backgroundColor: '#137333', order: 1 },
+      ] },
+      options: { responsive: true, interaction: { mode: 'index', intersect: false }, scales: { y: { beginAtZero: true, title: { display: true, text: '件' } }, y2: { position: 'right', beginAtZero: true, grid: { display: false }, ticks: { callback: v => v + '%' } } } },
+    }));
+  }
+}
+
+// ---------------- 設定 ----------------
+function renderSet() {
+  const admin = D.me.admin, dis = admin ? '' : 'disabled';
+  const camps = D.campaigns.slice().sort((a, b) => num(a['並び順']) - num(b['並び順']));
+  const cur = today().slice(0, 7);
+  const mons = [...new Set(monthsBetween(UI.costFrom || [...D.leads.map(l => l._ym), cur].sort()[0], cur).concat(D.adcost.map(c => c.ym)))].sort().reverse().slice(0, 12);
+  const cv = (ym, c) => { const x = D.adcost.find(a => a.ym === ym && a.camp === c); return x ? x.cost : ''; };
+  const S = D.settings;
+  const R = D.master.results, cats = [...new Set(R.map(r => r.cat))];
+  $('#p-set').innerHTML = `
+  ${admin ? '' : '<div class="hint">設定の変更は管理者のみです（表示のみ）。</div>'}
+  <h2>広告費（月 × 訴求）</h2>
+  <div class="note">税抜・手数料込みなど、クライアントの実質負担額で入力してください。分析の CPL・アポ単価・成約単価・ROAS・粗利−広告費 に使います。</div>
+  <div class="tblwrap"><table><thead><tr><th>訴求</th>${mons.map(m => `<th class="num">${m}</th>`).join('')}</tr></thead><tbody>
+  ${camps.map(c => `<tr><td>${esc(c['表示名'] || c['訴求'])}</td>${mons.map(m => `<td class="num"><input class="costin" ${dis} data-ym="${m}" data-camp="${esc(c['訴求'])}" value="${cv(m, c['訴求'])}" inputmode="numeric"></td>`).join('')}</tr>`).join('')}
+  </tbody></table></div>
+  ${admin ? '<p><button class="btn pri" id="saveCost">広告費を保存</button></p>' : ''}
+  <h2>訴求（アンケートLP）</h2>
+  <div class="note">スプレッドシートに訴求のシートを追加すると（1行目に「受信日時」「電話番号」がある場合）自動でここに追加されます。</div>
+  <div class="tblwrap"><table><thead><tr><th>シート名</th><th>表示名</th><th>媒体</th><th>状態</th><th>LP URL</th><th>並び順</th></tr></thead><tbody>
+  ${camps.map(c => `<tr data-c="${esc(c['訴求'])}"><td class="sm">${esc(c['訴求'])}</td><td><input ${dis} data-f="表示名" value="${esc(c['表示名'])}" style="width:220px"></td><td><input ${dis} data-f="媒体" value="${esc(c['媒体'])}" style="width:90px" list="medias"></td><td><select ${dis} data-f="状態">${['配信中', '停止', 'テスト'].map(s => `<option ${c['状態'] === s ? 'selected' : ''}>${s}</option>`).join('')}</select></td><td><input ${dis} data-f="LP URL" value="${esc(c['LP URL'])}" style="width:260px"></td><td><input ${dis} data-f="並び順" value="${esc(c['並び順'])}" style="width:60px"></td></tr>`).join('')}
+  </tbody></table></div><datalist id="medias"><option>Meta<option>Google<option>Yahoo<option>LINE<option>TikTok</datalist>
+  ${admin ? '<p><button class="btn pri" id="saveCamp">訴求を保存</button></p>' : ''}
+  <h2>アラート・計算の設定</h2>
+  <div class="card"><div class="form">${Object.keys(S).map(k => `<label>${esc(k)}</label><input ${dis} data-s="${esc(k)}" value="${esc(S[k])}" style="width:120px">`).join('')}</div>
+  ${admin ? '<p><button class="btn pri" id="saveSet">設定を保存</button></p>' : ''}</div>
+  <h2>マスタ（架電結果・失注理由など）</h2>
+  <div class="note">変更はスプレッドシートの「⚙マスタ」シートで行ってください（「接続」＝本人と話せた結果）。</div>
+  <div class="grid two">
+    <div class="card"><h3>架電結果</h3>${cats.map(c => `<div style="margin-bottom:6px"><b class="sm">${esc(c)}</b><br>${R.filter(r => r.cat === c).map(r => `<span class="pill">${esc(r.val)}${r.connect ? '' : ' <span class="sub">(未接続)</span>'}</span>`).join('')}</div>`).join('')}</div>
+    <div class="card"><h3>商談・その他</h3>
+      <div class="sm b">商談ステータス</div>${D.master.deal.map(v => `<span class="pill">${esc(v)}</span>`).join('')}
+      <div class="sm b" style="margin-top:8px">失注理由</div>${D.master.lost.map(v => `<span class="pill">${esc(v)}</span>`).join('')}
+      <div class="sm b" style="margin-top:8px">商材</div>${D.master.product.map(v => `<span class="pill">${esc(v)}</span>`).join('')}
+      <div class="sm b" style="margin-top:8px">架電者</div>${D.master.callers.map(v => `<span class="pill">${esc(v)}</span>`).join('')}
+    </div>
+  </div>
+  ${admin ? `<h2>利用者</h2>
+  <div class="note">登録したメールアドレスに確認コードが届き、ログインできます。ログイン画面：${D.loginUrl ? `<a href="${esc(D.loginUrl)}" target="_blank">${esc(D.loginUrl)}</a> <button class="btn sm" data-copy="${esc(D.loginUrl)}">コピー</button>` : '未設定'}<br>退職・担当変更のときは「無効にする」。「強制ログアウト」はその人のログイン中の端末をすべてログアウトさせます。</div>
+  <div class="card" style="margin-bottom:10px"><div class="filters" style="margin:0">
+    <input id="nuName" placeholder="表示名（例：山田）" style="width:140px"><input id="nuEmail" type="email" placeholder="ログイン用メールアドレス" style="width:230px"><select id="nuRole"><option>一般</option><option>管理</option></select>
+    <input id="nuMemo" placeholder="メモ（会社名・役割など）" style="width:200px"><button class="btn pri" id="nuAdd">利用者を追加</button></div>
+    <div class="note">一般＝リードの対応・トーク編集・分析の閲覧。管理＝加えて広告費・訴求・設定・利用者の管理。</div></div>
+  <div id="userList"><div class="sub">読み込み中…</div></div>` : ''}
+  ${D.sheetUrl ? `<p class="note">データの置き場所：<a href="${esc(D.sheetUrl)}" target="_blank">スプレッドシートを開く</a></p>` : ''}`;
+  if (!admin) return;
+  loadUsers();
+  $('#nuAdd').onclick = async () => { const name = $('#nuName').value.trim(), email = $('#nuEmail').value.trim(); if (!name) return toast('表示名を入力してください'); if (!email) return toast('ログイン用のメールアドレスを入力してください'); drawUsers(await call('api_addUser', { name, email, role: $('#nuRole').value, memo: $('#nuMemo').value })); toast(name + ' さんを追加しました。ログイン画面のURLを伝えてください'); };
+  $('#saveCost').onclick = async () => {
+    const rows = [...document.querySelectorAll('.costin')].map(i => ({ ym: i.dataset.ym, camp: i.dataset.camp, cost: i.value.replace(/[,¥\s]/g, '') }));
+    await call('api_saveAdCost', rows); toast('広告費を保存しました'); load();
+  };
+  $('#saveCamp').onclick = async () => {
+    const rows = [...document.querySelectorAll('tr[data-c]')].map(tr => { const o = { '訴求': tr.dataset.c }; tr.querySelectorAll('[data-f]').forEach(i => o[i.dataset.f] = i.value); return o; });
+    await call('api_saveCampaigns', rows); toast('訴求を保存しました'); load();
+  };
+  $('#saveSet').onclick = async () => {
+    const o = {}; document.querySelectorAll('[data-s]').forEach(i => o[i.dataset.s] = i.value);
+    await call('api_saveSettings', o); toast('設定を保存しました'); load();
+  };
+}
+
+async function loadUsers() { drawUsers(await call('api_users')); }
+function drawUsers(us) {
+  const box = $('#userList'); if (!box) return;
+  box.innerHTML = `<div class="tblwrap"><table><thead><tr><th>表示名</th><th>権限</th><th>状態</th><th>ログイン用メール</th><th>メモ</th><th>発行日</th><th></th></tr></thead><tbody>${us.map(u => `<tr>
+    <td><b>${esc(u.name)}</b>${u.name === D.me.name ? ' <span class="tag">自分</span>' : ''}</td><td>${esc(u.role)}</td>
+    <td>${u.active ? '<span class="st st-成約">有効</span>' : '<span class="st st-対象外">無効</span>'}</td>
+    <td class="sm">${u.email ? esc(u.email) : '<span class="red">未登録（ログイン不可）</span>'}</td>
+    <td class="sm">${esc(u.memo)}</td><td class="sm">${esc(String(u.created).slice(0, 10))}</td>
+    <td>${u.name === D.me.name ? '' : `<button class="btn sm" data-uact="${esc(u.key)}" data-v="${u.active ? 0 : 1}">${u.active ? '無効にする' : '有効に戻す'}</button> <button class="btn sm" data-ure="${esc(u.key)}">強制ログアウト</button>`}</td></tr>`).join('')}</tbody></table></div>`;
+  document.querySelectorAll('[data-copy]').forEach(b => b.onclick = async () => { try { await navigator.clipboard.writeText(b.dataset.copy); toast('URLをコピーしました'); } catch (e) { prompt('このURLをコピーしてください', b.dataset.copy); } });
+  box.querySelectorAll('[data-uact]').forEach(b => b.onclick = async () => drawUsers(await call('api_updateUser', b.dataset.uact, { active: b.dataset.v === '1' })));
+  box.querySelectorAll('[data-ure]').forEach(b => b.onclick = async () => { if (!confirm('この人のログイン中の端末をすべてログアウトさせます。よろしいですか？')) return; drawUsers(await call('api_updateUser', b.dataset.ure, { reissue: true })); toast('ログアウトさせました（次回はメールの確認コードで再ログイン）'); });
+}
+
+// 一覧の備考メモをその場で編集（Ctrl/⌘+Enter か「保存」で保存、Escで取消）
+function editMemo(cell) {
+  const id = cell.dataset.memo, l = D.leads.find(x => x['リードID'] === id);
+  const td = cell.parentElement;
+  td.innerHTML = `<textarea class="memoEdit">${esc(l['メモ'] || '')}</textarea><div class="memoBtns" style="margin-top:4px"><button class="btn sm pri">保存</button> <button class="btn sm">取消</button></div>`;
+  const ta = td.querySelector('textarea'), [ok, cancel] = td.querySelectorAll('button');
+  ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length);
+  const restore = () => { td.innerHTML = `<div class="memoCell" data-memo="${id}" title="クリックして入力">${l['メモ'] ? esc(l['メモ']) : '<span class="sub">＋ 入力</span>'}</div>`; };
+  const save = async () => {
+    if (ta.value === (l['メモ'] || '')) return restore();
+    ok.disabled = true;
+    try {
+      const nl = await call('api_updateLead', id, { memoSet: ta.value });
+      const i = D.leads.findIndex(x => x['リードID'] === id); Object.assign(D.leads[i], nl, { _hist: l._hist });
+      Object.assign(l, nl); toast('メモを保存しました');
+    } catch (e) {}
+    restore();
+  };
+  ok.onclick = save; cancel.onclick = restore;
+  ta.onkeydown = e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) save(); if (e.key === 'Escape') { e.stopPropagation(); restore(); } };
+}
+
+// ====================== 詳細（ドロワー） ======================
+const DR = { result: '', deal: '' };
+async function openLead(id) {
+  UI.sel = id; DR.result = ''; const l = D.leads.find(x => x['リードID'] === id); if (!l) return;
+  DR.deal = l['商談ステータス'] || '';
+  drawLead(l, null);
+  $('#drawer').classList.add('open'); $('#mask').classList.add('open');
+  const logs = await call('api_leadLogs', id);
+  if (UI.sel === id) drawLead(D.leads.find(x => x['リードID'] === id), logs);
+}
+// 架電可能時間の外なら、次の開始時刻に寄せる
+function inHours(d) {
+  const st = String(D.settings['架電可能時間_開始'] || '09:00'), en = String(D.settings['架電可能時間_終了'] || '20:00');
+  const s = fmt(d), hm = s.slice(11, 16);
+  if (hm < st) return s.slice(0, 11) + st;
+  if (hm >= en) return fmt(new Date(d.getTime() + 864e5)).slice(0, 11) + st;
+  return s;
+}
+function closeLead() { UI.sel = null; $('#drawer').classList.remove('open'); $('#mask').classList.remove('open'); }
+
+function drawLead(l, logs) {
+  const R = D.master.results, cats = [...new Set(R.map(r => r.cat))];
+  const callers = [...new Set(D.master.callers.concat(D.users || []))];
+  const defCaller = (() => { try { return localStorage.getItem('caller' + NS); } catch (e) { return ''; } })() || D.me.name;
+  const dup = l['重複元ID'] && D.leads.find(x => x['リードID'] === l['重複元ID']);
+  const sameTel = D.leads.filter(x => x !== l && x['電話番号'] && x['電話番号'].replace(/\D/g, '') === l['電話番号'].replace(/\D/g, ''));
+  const inSec = !!l['アポ日時'] || !!l['商談ステータス'];
+  const dt = (s) => s ? s.replace(' ', 'T') : '';
+  const nextDef = inHours(new Date(Date.now() + 3 * 3600e3)).replace(' ', 'T');
+  $('#drawer').innerHTML = `
+  <div class="dh">
+    <div style="display:flex;justify-content:space-between;align-items:start;gap:10px">
+      <div><div class="nm">${esc(l['氏名'])} 様 ${stBadge(l['ステータス'])}${l._notHouse ? '<span class="nh">持ち家戸建て以外の回答（有効リード外）</span>' : ''}${l._areaOut ? '<span class="nh">対応エリア外（有効リード外）</span>' : ''}</div>
+      <a class="tel" href="tel:${esc(l['電話番号'])}">📞 ${esc(l['電話番号'])}</a> <span class="sub">${esc(l['都道府県'])}</span></div>
+      <button class="btn" id="dclose">閉じる</button>
+    </div>
+    <div class="sub sm" style="margin-top:6px">${esc(campName(l['訴求']))}・リード取得 ${md(l['受信日時'])}${l['ステータス'] === '未対応' ? ` ・<b class="${l._wait >= num(D.settings['初回架電の目標(分)']) ? 'red' : ''}">経過 ${ago(Math.max(0, l._wait))}</b>` : ''}・架電 ${num(l['架電回数'])}回</div>
+    ${dup ? `<div class="hint" style="margin:8px 0 0">重複：${md(dup['受信日時'])}「${esc(campName(dup['訴求']))}」に同じ電話番号のリードがあります（${stBadge(dup['ステータス'])}）。 <a href="#" data-open="${dup['リードID']}">そちらを開く</a>　<button class="btn sm" id="undup">重複ではない</button></div>` : sameTel.length && !l['重複元ID'] ? `<div class="note">同じ電話番号：${sameTel.map(x => `<a href="#" data-open="${x['リードID']}">${md(x['受信日時'])} ${esc(campName(x['訴求']))}</a>`).join('、')}</div>` : ''}
+  </div>
+  <div class="db">
+    <div class="sec"><h3>アンケート回答</h3><div class="kv">${Object.entries(l._ans).map(([q, a]) => `<div>${esc(q)}</div><div><b>${esc(a)}</b></div>`).join('') || '<div class="sub">なし</div><div></div>'}<div>フォーム</div><div>${esc(l['フォーム'])}</div></div></div>
+
+    <details class="sec" ${CAMP(l['訴求'])['トークスクリプト'] ? 'open' : ''}><summary class="b" style="cursor:pointer">トークスクリプト（${esc(campName(l['訴求']))}）</summary><div style="margin-top:8px" id="dTalk">${talkView(CAMP(l['訴求']))}</div><button class="btn sm" id="dTalkEdit" style="margin-top:6px">編集</button></details>
+    <div class="sec"><h3>架電結果を記録</h3>
+      <div class="rbtns">${cats.map(c => `<div class="cat">${esc(c)}</div>` + R.filter(r => r.cat === c).map(r => `<button class="rb c-${esc(c)} ${DR.result === c + '/' + r.val ? 'on' : ''}" data-r="${esc(c + '/' + r.val)}">${esc(r.val)}</button>`).join('')).join('')}</div>
+      <div class="form">
+        <label>架電者</label><select id="cCaller">${callers.map(c => `<option ${c === defCaller ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select>
+        <label>架電日時</label><div><input type="datetime-local" id="cAt" value=""> <span class="sub sm">空欄＝今</span></div>
+        <div id="nextRow" style="display:${DR.result.startsWith('再架電') ? 'contents' : 'none'}"><label>次回架電予定</label><div><input type="datetime-local" id="cNext" value="${nextDef}"> ${[['1時間後', 1], ['3時間後', 3], ['明日', 24], ['3日後', 72]].map(([t, h]) => `<button class="btn sm" data-nx="${h}">${t}</button>`).join('')}</div></div>
+        <div id="apoRow" style="display:${DR.result.startsWith('アポ') ? 'contents' : 'none'}"><label>アポ日時 <span class="red">*</span></label><input type="datetime-local" id="cApo"><label>アポ形式</label><select id="cApoType">${D.master.apoType.map(v => `<option>${esc(v)}</option>`).join('')}</select></div>
+        <label>メモ</label><textarea id="cMemo" placeholder="話した内容・不在時の状況など"></textarea>
+      </div>
+      <p><button class="btn pri" id="cSave">架電結果を保存</button></p>
+    </div>
+
+    <div class="sec" ${inSec ? '' : 'style="opacity:.75"'}><h3>商談 ${inSec ? '' : '<span class="sub sm">（アポ獲得後に入力）</span>'}</h3>
+      <div class="form">
+        <label>商談ステータス</label><select id="dDeal"><option value="">-</option>${D.master.deal.map(v => `<option ${DR.deal === v ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select>
+        <label>アポ日時</label><div><input type="datetime-local" id="dApo" value="${dt(l['アポ日時'])}"> <select id="dApoType"><option value="">-</option>${D.master.apoType.map(v => `<option ${l['アポ形式'] === v ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></div>
+        <label>営業担当</label><div><input id="dRep" list="repList" value="${esc(l['営業担当'] || '')}" placeholder="訪問・商談の担当"><datalist id="repList">${(D.master.reps || []).map(v => `<option>${esc(v)}</option>`).join('')}</datalist></div>
+        <label>商談実施日</label><input type="date" id="dDate" value="${esc(String(l['商談実施日']).slice(0, 10))}">
+        <label>見積金額</label><input id="dQuote" inputmode="numeric" value="${esc(l['見積金額'])}" placeholder="円">
+        <label>商材</label><select id="dProd"><option value="">-</option>${D.master.product.map(v => `<option ${l['商材'] === v ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select>
+        <div id="wonRow" style="display:${DR.deal === '成約' ? 'contents' : 'none'}">
+          <label>成約日</label><input type="date" id="dWon" value="${esc(String(l['成約日']).slice(0, 10))}">
+          <label>売上（税抜） <span class="red">*</span></label><input id="dSales" inputmode="numeric" value="${esc(l['売上'])}" placeholder="円">
+          <label>粗利</label><div><input id="dGross" inputmode="numeric" value="${esc(l['粗利'])}" placeholder="空欄＝売上×${esc(D.settings['粗利率の初期値(%)'])}%で推定"></div>
+        </div>
+        <div id="lostRow" style="display:${DR.deal === '失注' ? 'contents' : 'none'}"><label>失注理由 <span class="red">*</span></label><select id="dLost"><option value="">選択</option>${D.master.lost.map(v => `<option ${l['失注理由'] === v ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></div>
+        <label>メモ</label><textarea id="dMemo" placeholder="商談の内容・次のアクション"></textarea>
+      </div>
+      <p><button class="btn pri" id="dSave">商談を保存</button></p>
+    </div>
+
+    <div class="sec"><h3>担当・メモ</h3>
+      <div class="form"><label>担当者</label><div><select id="uOwner"><option value="">-</option>${callers.map(c => `<option ${l['担当者'] === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select> <button class="btn sm" id="uSave">変更</button></div></div>
+      ${l['メモ'] ? `<div class="memo" style="margin-top:8px">${esc(l['メモ'])}</div>` : ''}
+      ${l['進捗メモ'] ? `<div class="sub sm" style="margin-top:8px">訪問・商談の記録（進捗表より）</div><div class="memo">${esc(l['進捗メモ'])}</div>` : ''}
+    </div>
+
+    <div class="sec"><h3>対応履歴</h3>${logs == null ? '<div class="sub">読み込み中…</div>' : logs.length ? `<div class="tl">${logs.slice().reverse().map(g => `<div class="it ${esc(g['種別'])}"><b>${md(g['日時'])}</b> ${esc(g['対応者'])}　<span class="b">${esc(g['大分類'])}${g['小分類'] ? '・' + esc(g['小分類']) : ''}</span>${g['次回架電予定'] ? ` <span class="sub">→ 次回 ${md(g['次回架電予定'])}</span>` : ''}${g['メモ'] ? `<div class="sub">${esc(g['メモ'])}</div>` : ''}</div>`).join('')}</div>` : '<div class="sub">まだ対応履歴はありません</div>'}
+    <div class="sub sm" style="margin-top:8px">${l['更新日時'] ? `最終更新 ${md(l['更新日時'])} ${esc(l['更新者'])}` : ''}</div></div>
+  </div>`;
+  $('#dclose').onclick = closeLead;
+  $('#dTalkEdit').onclick = () => { $('#dTalkEdit').style.display = 'none'; editTalk(l['訴求'], $('#dTalk'), () => { drawLead(D.leads.find(x => x['リードID'] === l['リードID']), logs); if (UI.page === 'list') renderList(); }); };
+  document.querySelectorAll('[data-open]').forEach(a => a.onclick = e => { e.preventDefault(); openLead(a.dataset.open); });
+  document.querySelectorAll('.rb').forEach(b => b.onclick = () => {
+    DR.result = b.dataset.r;
+    document.querySelectorAll('.rb').forEach(x => x.classList.toggle('on', x === b));
+    $('#nextRow').style.display = DR.result.startsWith('再架電') ? 'contents' : 'none';
+    $('#apoRow').style.display = DR.result.startsWith('アポ') ? 'contents' : 'none';
+  });
+  document.querySelectorAll('[data-nx]').forEach(b => b.onclick = () => {
+    const h = +b.dataset.nx; let d = new Date(Date.now() + h * 3600e3);
+    if (h >= 24) { const s = fmt(d).slice(0, 10) + 'T10:00'; $('#cNext').value = s; } else $('#cNext').value = inHours(d).replace(' ', 'T');
+  });
+  $('#dDeal').onchange = e => { DR.deal = e.target.value; $('#wonRow').style.display = DR.deal === '成約' ? 'contents' : 'none'; $('#lostRow').style.display = DR.deal === '失注' ? 'contents' : 'none'; };
+  const undup = $('#undup'); if (undup) undup.onclick = () => saveAnd('api_updateLead', l, { undup: true }, '重複を解除しました');
+  $('#cSave').onclick = () => {
+    if (!DR.result) return toast('架電結果を選んでください');
+    try { localStorage.setItem('caller' + NS, $('#cCaller').value); } catch (e) {}
+    saveAnd('api_logCall', l, { result: DR.result, caller: $('#cCaller').value, at: $('#cAt').value.replace('T', ' '), next: $('#cNext').value.replace('T', ' '), apoAt: $('#cApo').value.replace('T', ' '), apoType: $('#cApoType').value, memo: $('#cMemo').value }, '架電結果を保存しました');
+  };
+  $('#dSave').onclick = () => saveAnd('api_saveDeal', l, { deal: $('#dDeal').value, apoAt: $('#dApo').value.replace('T', ' '), apoType: $('#dApoType').value, date: $('#dDate').value, quote: $('#dQuote').value, product: $('#dProd').value, wonDate: $('#dWon').value, sales: $('#dSales').value, gross: $('#dGross').value, lostReason: $('#dLost').value, sales_rep: $('#dRep').value, memo: $('#dMemo').value }, '商談を保存しました');
+  $('#uSave').onclick = () => saveAnd('api_updateLead', l, { owner: $('#uOwner').value }, '担当者を変更しました');
+}
+
+async function saveAnd(fn, l, p, msg) {
+  document.querySelectorAll('#drawer .btn.pri').forEach(b => b.disabled = true);
+  try {
+    const nl = await call(fn, l['リードID'], p);
+    const i = D.leads.findIndex(x => x['リードID'] === l['リードID']);
+    D.leads[i] = nl;
+    const pre = D.logs.length;
+    if (fn === 'api_logCall') D.logs.push([fmt(new Date()), nl['リードID'], '架電', p.caller, p.result.split('/')[0], p.result.split('/')[1]]);
+    prep(); toast(msg); render(); openLead(nl['リードID']);
+  } catch (e) { document.querySelectorAll('#drawer .btn.pri').forEach(b => b.disabled = false); }
+}
+
+// ====================== イベント ======================
+document.addEventListener('click', e => {
+  const nb = e.target.closest('nav button'); if (nb) { UI.page = nb.dataset.p; render(); return; }
+  const al = e.target.closest('[data-al]'); if (al) { UI.alert = UI.alert === al.dataset.al ? 'all' : al.dataset.al; render(); return; }
+  const mc = e.target.closest('.memoCell'); if (mc) { editMemo(mc); return; }
+  if (e.target.closest('textarea.memoEdit, .memoBtns')) return;
+  const tr = e.target.closest('tr.click'); if (tr) { openLead(tr.dataset.id); return; }
+  const ct = e.target.closest('.ctab[data-camp]'); if (ct) { UI.list.camp = ct.dataset.camp; UI.list.st = ''; renderList(); return; }
+  const ch = e.target.closest('.chip[data-st]'); if (ch) { UI.list.st = ch.dataset.st; renderList(); return; }
+});
+$('#mask').onclick = closeLead;
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLead(); });
+$('#reload').onclick = () => { $('#reload').disabled = true; load(true).finally(() => $('#reload').disabled = false); };
+// 5分ごとに最新化（ドロワーを開いていない時だけ）
+setInterval(() => { if (!UI.sel && document.visibilityState === 'visible') load(false); }, 5 * 60e3);
+load(false); // 開いたときは取込を待たない（取込は5分ごとの自動処理と「最新に更新」で行う）
+</script>
+</body>
+</html>
