@@ -252,6 +252,7 @@ const campName = name => CAMP(name)['表示名'] || name;
 
 // ====================== 読み込み・前処理 ======================
 async function load(sync) {
+  if (window.HUB_MODE) return hubLoad(sync); // 社内の案件一括管理（hub/hub_ui.js）
   if (STATIC && !TK.get()) { showLogin(); return; }
   try { D = await call('api_bootstrap', !!sync); } catch (e) {
     if (STATIC && !TK.get()) return; // ログイン画面に戻った
@@ -342,6 +343,7 @@ function alerts() {
 
 // ====================== 描画 ======================
 function render() {
+  if (window.HUB_MODE) return hubRender();
   document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.p === UI.page));
   ['home', 'list', 'ana', 'set'].forEach(p => $('#p-' + p).hidden = p !== UI.page);
   const A = alerts();
@@ -378,7 +380,7 @@ function leadRows(list, cols) {
     next: ['次回架電', l => { const d = toD(l['次回架電予定']); return d ? `<span class="${d < Date.now() ? 'red b' : ''}">${md(l['次回架電予定'])}</span>` : ''; }],
     apo: ['アポ日時', l => md(l['アポ日時'])],
     deal: ['商談', l => esc(l['商談ステータス'])],
-    dres: ['商談結果', l => `<span class="sm">${esc(l['進捗_商談結果'] || '')}</span>`], // 進捗表の商談結果（アームズ様）
+    dres: ['商談結果', l => `<span class="sm">${esc(l['進捗_商談結果'] || '')}</span>`], // 進捗表の商談結果
     v1d: ['初訪日', l => md(String(l['進捗_初訪日'] || '').slice(0, 10))],
     v1r: ['初訪結果', l => `<span class="sm">${esc(l['進捗_訪問結果'] || '')}</span>`],
     invd: ['調査日', l => md(String(l['進捗_調査日'] || '').slice(0, 10))],
@@ -471,7 +473,7 @@ function renderList() {
   const DRES = L.some(l => l['進捗_商談結果']) ? ['dres'] : []; // 進捗表を使う会社だけ「商談結果」列を出す
   const TREE = statusTree(), node = TREE.find(n => n.k === F.st);
   if (F.st && !node) F.st = '';
-  // 階層で「商談」以下（成約・失注・検討）を選んだときは、架電の列の代わりに進捗表の初訪〜商談の列を出す（アームズ様）
+  // 階層で「商談」以下（成約・失注・検討）を選んだときは、架電の列の代わりに進捗表の初訪〜商談の列を出す
   const DCOLS = D.dealRule && D.dealRule.dateField && ['deal', 'won', 'lost', 'cons'].includes(F.st);
   let list = base.filter(l => (!node || node.f(l)) && (!F.apoOnly || l._apo));
   const k = UI.sort.k, d = UI.sort.d;
@@ -555,7 +557,7 @@ function statusTree() {
   // アポを取ったリードはリード情報にかかわらず有効に数える（アポ数をそろえるため）
   const val = l => l._apo || !isInvalid(l), fol = l => val(l) && !l._apo, ap = l => l._apo;
   if (DF) {
-    // アームズ様：商談＝進捗表M列（商談日）あり／初訪NG＝商談日なし・訪問結果NGかツブレ／商談前＝それ以外で進捗表にあるアポ／進捗表なし＝架電シートでアポだが進捗表にまだない
+    // 進捗表を使う会社：商談＝進捗表M列（商談日）あり／初訪NG＝商談日なし・訪問結果NGかツブレ／商談前＝それ以外で進捗表にあるアポ／進捗表なし＝架電シートでアポだが進捗表にまだない
     const vr = l => String(l['進捗_訪問結果'] || '').trim();
     const dl = l => ap(l) && !!l[DF], fng = l => ap(l) && !l[DF] && /NG|ツブレ/i.test(vr(l)), pre = l => ap(l) && !l[DF] && !!vr(l) && !fng(l), nop = l => ap(l) && !l[DF] && !vr(l);
     // 進捗表の結果（再訪結果を優先）か、商談ステータス（架電シート）のどちらかで成約・失注なら、そちらに入れる
@@ -999,8 +1001,8 @@ $('#mask').onclick = closeLead;
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLead(); });
 $('#reload').onclick = () => { $('#reload').disabled = true; load(true).finally(() => $('#reload').disabled = false); };
 // 5分ごとに最新化（ドロワーを開いていない時だけ）
-setInterval(() => { if (!UI.sel && document.visibilityState === 'visible') load(false); }, 5 * 60e3);
-load(false); // 開いたときは取込を待たない（取込は5分ごとの自動処理と「最新に更新」で行う）
+if (!window.HUB_MODE) setInterval(() => { if (!UI.sel && document.visibilityState === 'visible') load(false); }, 5 * 60e3);
+if (!window.HUB_MODE) load(false); // 開いたときは取込を待たない（取込は5分ごとの自動処理と「最新に更新」で行う）。社内の案件一括管理は hub_ui.js が読み込む
 </script>
 </body>
 </html>
