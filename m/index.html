@@ -804,8 +804,14 @@ function renderSet() {
       <div class="sm b">商談ステータス</div>${D.master.deal.map(v => `<span class="pill">${esc(v)}</span>`).join('')}
       <div class="sm b" style="margin-top:8px">失注理由</div>${D.master.lost.map(v => `<span class="pill">${esc(v)}</span>`).join('')}
       <div class="sm b" style="margin-top:8px">商材</div>${D.master.product.map(v => `<span class="pill">${esc(v)}</span>`).join('')}
-      <div class="sm b" style="margin-top:8px">架電者</div>${D.master.callers.map(v => `<span class="pill">${esc(v)}</span>`).join('')}
     </div>
+  </div>
+  <h2>架電者・営業担当</h2>
+  <div class="note">架電者＝電話をかける人（架電の記録・担当者の選択肢）。営業担当＝アポ後に訪問・商談する人（リード詳細の「営業担当」の選択肢・成果分析の営業担当別）。1行に1名ずつ入力してください。</div>
+  <div class="grid two">
+    ${[['架電者', D.master.callers, 'callers'], ['営業担当', D.master.reps || [], 'reps']].map(([t, list, id]) => `<div class="card"><h3>${t}</h3>
+      ${admin ? `<textarea id="nm-${id}" rows="6" style="width:100%" placeholder="${t === '営業担当' ? '例：\n山田（営業）\n佐藤（営業）' : '例：\n田中\n鈴木'}">${esc(list.join('\n'))}</textarea>
+      <p><button class="btn pri" data-names="${t}" data-src="nm-${id}">${t}を保存</button></p>` : (list.map(v => `<span class="pill">${esc(v)}</span>`).join('') || '<span class="sub">未登録</span>')}</div>`).join('')}
   </div>
   ${admin ? `<h2>利用者</h2>
   <div class="note">登録したメールアドレスに確認コードが届き、ログインできます。ログイン画面：${D.loginUrl ? `<a href="${esc(D.loginUrl)}" target="_blank">${esc(D.loginUrl)}</a> <button class="btn sm" data-copy="${esc(D.loginUrl)}">コピー</button>` : '未設定'}<br>退職・担当変更のときは「無効にする」。「強制ログアウト」はその人のログイン中の端末をすべてログアウトさせます。</div>
@@ -826,6 +832,10 @@ function renderSet() {
     const rows = [...document.querySelectorAll('tr[data-c]')].map(tr => { const o = { '訴求': tr.dataset.c }; tr.querySelectorAll('[data-f]').forEach(i => o[i.dataset.f] = i.value); return o; });
     await call('api_saveCampaigns', rows); toast('訴求を保存しました'); load();
   };
+  document.querySelectorAll('[data-names]').forEach(b => b.onclick = async () => {
+    const t = b.dataset.names, names = $('#' + b.dataset.src).value.split(/\n/).map(v => v.trim()).filter(v => v);
+    await call('api_saveNames', t, names); toast(t + 'を保存しました（' + names.length + '名）'); load();
+  });
   $('#saveSet').onclick = async () => {
     const o = {}; document.querySelectorAll('[data-s]').forEach(i => o[i.dataset.s] = i.value);
     await call('api_saveSettings', o); toast('設定を保存しました'); load();
@@ -927,7 +937,7 @@ function drawLead(l, logs) {
       <div class="form">
         <label>商談ステータス</label><select id="dDeal"><option value="">-</option>${D.master.deal.map(v => `<option ${DR.deal === v ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select>
         <label>アポ日時</label><div><input type="datetime-local" id="dApo" value="${dt(l['アポ日時'])}"> <select id="dApoType"><option value="">-</option>${D.master.apoType.map(v => `<option ${l['アポ形式'] === v ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></div>
-        <label>営業担当</label><div><input id="dRep" list="repList" value="${esc(l['営業担当'] || '')}" placeholder="訪問・商談の担当"><datalist id="repList">${(D.master.reps || []).map(v => `<option>${esc(v)}</option>`).join('')}</datalist></div>
+        <label>営業担当</label><div>${(D.master.reps || []).length ? `<select id="dRep"><option value="">-</option>${[...new Set((D.master.reps || []).concat(l['営業担当'] ? [l['営業担当']] : []))].map(v => `<option ${l['営業担当'] === v ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select>` : `<input id="dRep" value="${esc(l['営業担当'] || '')}" placeholder="訪問・商談の担当">`} <span class="sub sm">選択肢は 設定 &gt; 架電者・営業担当</span></div>
         <label>商談実施日</label><input type="date" id="dDate" value="${esc(String(l['商談実施日']).slice(0, 10))}">
         <label>見積金額</label><input id="dQuote" inputmode="numeric" value="${esc(l['見積金額'])}" placeholder="円">
         <label>商材</label><select id="dProd"><option value="">-</option>${D.master.product.map(v => `<option ${l['商材'] === v ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select>
