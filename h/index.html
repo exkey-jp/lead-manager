@@ -1029,7 +1029,44 @@ function hubInit() {
     <select id="hubCo" title="会社" style="margin-left:6px"></select>`;
   const sec = document.createElement('section'); sec.id = 'p-hub'; $('main').prepend(sec);
   const sec2 = document.createElement('section'); sec2.id = 'p-hubcamp'; sec2.hidden = true; sec.after(sec2);
-  document.head.insertAdjacentHTML('beforeend', '<style>tr.grp td{background:#f6f8fc;border-top:2px solid #e3e8f0}tr.sub-row td{color:#444}</style>');
+  document.head.insertAdjacentHTML('beforeend', `<style>tr.grp td{background:#f6f8fc;border-top:2px solid #e3e8f0}tr.sub-row td{color:#444}
+#hubFull{display:none}
+/* スマホ：ヘッダー2段・タブ横スクロール、表は1列目固定＋主要項目だけ（「全項目」で切替） */
+@media(max-width:700px){
+  header{flex-wrap:wrap;height:auto;padding:6px 10px 0;gap:2px 8px}
+  header h1{font-size:15px}
+  .hd-right{font-size:11px;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+  .hd-right .btn{padding:3px 8px}
+  header h1{flex:1}
+  #hubFull{display:inline-block}
+  nav{order:3;width:100%;height:42px;overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none}
+  nav::-webkit-scrollbar{display:none}
+  nav button{white-space:nowrap;flex:none;padding:0 12px}
+  nav select{flex:none;max-width:160px;align-self:center}
+  main{padding:8px}
+  .card{padding:12px;overflow-x:auto}
+  .grid>*{min-width:0}
+  .kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .note{font-size:11px}
+  h2{font-size:16px}
+  .tblwrap{max-height:none;border-radius:8px}
+  .tblwrap table{font-size:12px}
+  .tblwrap th,.tblwrap td{padding:6px 8px}
+  .tblwrap th:first-child,.tblwrap td:first-child{position:sticky;left:0;z-index:2;background:#fff;min-width:110px;max-width:160px;white-space:normal;box-shadow:1px 0 0 var(--line)}
+  .tblwrap thead th:first-child{z-index:4}
+  tr.sub-row td:first-child .sub,tr.grp td:first-child .sub.sm{display:none}
+  #updated{display:none}
+  .tblwrap tr.grp td:first-child{background:#f6f8fc}
+  .tblwrap tr.total td:first-child{background:#fafbfc}
+  body:not(.hub-full) table.mt :is(th,td):is(:nth-child(5),:nth-child(7),:nth-child(8),:nth-child(9),:nth-child(13),:nth-child(14),:nth-child(16),:nth-child(17),:nth-child(19),:nth-child(20),:nth-child(21)){display:none}
+}</style>`);
+  // 会社別の成果分析は絞り込みのたびに描き直されるので、そのたびに印を付け直す
+  const pa = $('#p-ana'); if (pa && window.MutationObserver) new MutationObserver(() => hubMarkTables(pa)).observe(pa, { childList: true });
+  const hr = document.querySelector('.hd-right');
+  if (hr) {
+    hr.insertAdjacentHTML('afterbegin', '<button class="btn sm" id="hubFull" title="表の項目（主要10項目／全21項目）を切り替え">全項目</button>');
+    $('#hubFull').onclick = () => { const on = document.body.classList.toggle('hub-full'); $('#hubFull').textContent = on ? '主要項目' : '全項目'; };
+  }
   UI.page = 'hub';
   UI.hub = { from: '', to: '', metric: 'apo', split: true, co: '', cmetric: 'cpa' };
 }
@@ -1080,7 +1117,7 @@ function hubRender() {
   if (!H) return;
   $('#hubCo').value = UI.hubSel || '';
   $('#hubCo').style.display = UI.page === 'ana' ? '' : 'none';
-  if (UI.page === 'ana') { hubUse(UI.hubSel); renderAna(); } else if (UI.page === 'camp') renderHubCamp(); else renderHub();
+  if (UI.page === 'ana') { hubUse(UI.hubSel); renderAna(); hubMarkTables($('#p-ana')); } else if (UI.page === 'camp') renderHubCamp(); else renderHub();
 }
 
 // 1社・期間の成果（各社の画面の「リード取得月」の集計と同じ）
@@ -1106,6 +1143,10 @@ function hubFmt(v, k) {
   return Number(v).toLocaleString();
 }
 
+// 各社の成果分析の表のうち、全社比較と同じ21項目の表に印を付ける（スマホで主要項目だけにするため）
+function hubMarkTables(root) {
+  root.querySelectorAll('table').forEach(t => { const h = [...t.querySelectorAll('thead th')].map(x => x.textContent.trim()); if (h.length === 21 && h[1] === '広告費' && h[20] === 'ROAS') t.classList.add('mt'); });
+}
 // 成果の表（全社比較・訴求別で共通）
 const hubHead = first => `<thead><tr><th>${first}</th><th class="num">広告費</th><th class="num">リード</th><th class="num">有効</th><th class="num">有効率</th><th class="num cpa">CPL</th><th class="num">有効CPL</th><th class="num">架電率</th><th class="num">接続率</th><th class="num">アポ</th><th class="num">アポ率</th><th class="num cpa">アポ単価</th><th class="num">商談</th><th class="num">商談率</th><th class="num">成約</th><th class="num">成約率</th><th class="num cpa">成約単価</th><th class="num">売上</th><th class="num">粗利</th><th class="num">粗利−広告費</th><th class="num">ROAS</th></tr></thead>`;
 const hubRow = (label, m, extra = '') => `<tr ${extra}><td>${label}</td>
@@ -1180,10 +1221,10 @@ function renderHubCamp() {
     <label class="sm"><input type="checkbox" id="hcSplit" ${F.split ? 'checked' : ''}> 会社ごとの内訳を出す</label>
   </div>
   <div class="note">※ 訴求名の【E1-1】などの統一名称（コード）が同じものを、会社をまたいでまとめています（地域や特典額の違い＝【東北】【関東】・2万/3万なども同じコードならまとめます）。コードのない訴求は名前ごとに出します。数え方は各社の「成果分析」と同じです（その期間に取得したリードがその後どうなったか。広告費はその期間の月の合計）。会社名を押すと、その会社のその訴求の成果分析を開きます。</div>
-  <div class="tblwrap"><table>${hubHead('訴求')}<tbody>${body || '<tr><td colspan="21" class="empty">データなし</td></tr>'}${rows.length > 1 ? hubRow('合計', T, 'class="total"') : ''}</tbody></table></div>
+  <div class="tblwrap"><table class="mt">${hubHead('訴求')}<tbody>${body || '<tr><td colspan="21" class="empty">データなし</td></tr>'}${rows.length > 1 ? hubRow('合計', T, 'class="total"') : ''}</tbody></table></div>
   <h2 style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">訴求の比較
     <select id="hcMetric">${HUBM.map(([k, t]) => `<option value="${k}" ${mk === k ? 'selected' : ''}>${t}</option>`).join('')}</select></h2>
-  <div class="card"><canvas id="chHubCamp" height="${Math.max(80, chartRows.length * 9)}"></canvas></div>`;
+  <div class="card"><canvas id="chHubCamp" height="${innerWidth < 700 ? Math.max(220, chartRows.length * 40) : Math.max(80, chartRows.length * 9)}"></canvas></div>`;
   const root = $('#p-hubcamp');
   hubPeriodBind(root, renderHubCamp);
   $('#hcCo').onchange = e => { F.co = e.target.value; renderHubCamp(); };
@@ -1237,7 +1278,7 @@ function renderHub() {
     <div class="card kpi hl"><div class="l">粗利 − 広告費</div><div class="v">${T.cost ? yenS(T.profit) : '-'}</div></div>
   </div>
   <h2>会社別の成果 <span class="sub sm">${esc(F.from)}〜${esc(F.to)}</span></h2>
-  <div class="tblwrap"><table>${head}<tbody>${rows.map(x => row(`<a href="#" data-co="${esc(x.c.name)}"><b>${esc(x.c.name)}</b></a>`, x.m)).join('')}${rows.length > 1 ? row('合計', T, 'class="total"') : ''}</tbody></table></div>
+  <div class="tblwrap"><table class="mt">${head}<tbody>${rows.map(x => row(`<a href="#" data-co="${esc(x.c.name)}"><b>${esc(x.c.name)}</b></a>`, x.m)).join('')}${rows.length > 1 ? row('合計', T, 'class="total"') : ''}</tbody></table></div>
   <h2 style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">月別の推移
     <select id="hmetric">${HUBM.map(([k, t]) => `<option value="${k}" ${mk === k ? 'selected' : ''}>${t}</option>`).join('')}</select>
     <span class="sub sm">リード取得月ごと</span></h2>
@@ -1245,7 +1286,7 @@ function renderHub() {
     ${grid.map(g => `<tr><td><a href="#" data-co="${esc(g.c.name)}">${esc(g.c.name)}</a></td>${g.by.map(m => `<td class="num">${hubFmt(hubVal(m, mk), mk)}</td>`).join('')}</tr>`).join('')}
     ${grid.length > 1 ? `<tr class="total"><td>合計</td>${tot.map(m => `<td class="num">${hubFmt(hubVal(m, mk), mk)}</td>`).join('')}</tr>` : ''}
   </tbody></table></div>
-  <div class="card" style="margin-top:12px"><canvas id="chHub" height="110"></canvas></div>`;
+  <div class="card" style="margin-top:12px"><canvas id="chHub" height="${innerWidth < 700 ? 260 : 110}"></canvas></div>`;
 
   const sv = (id, k) => ($(id).onchange = e => { F[k] = e.target.value; if (F.from > F.to) F.to = F.from; renderHub(); });
   sv('#hfrom', 'from'); sv('#hto', 'to'); sv('#hmetric', 'metric');
