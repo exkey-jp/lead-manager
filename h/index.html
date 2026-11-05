@@ -689,7 +689,8 @@ function renderAna() {
   // 何回目でアポ
   const callNo = tally(L.filter(l => l._apoCallNo).map(l => l._apoCallNo >= 6 ? '6回目以降' : l._apoCallNo + '回目')).sort((a, b) => a[0].localeCompare(b[0]));
   // 都道府県
-  const prefs = {}; valid.forEach(l => { const p = l['都道府県'] || '不明'; const o = prefs[p] = prefs[p] || { n: 0, apo: 0, won: 0, sales: 0 }; o.n++; if (l._apo) o.apo++; if (l._won) { o.won++; o.sales += l._sales; } });
+  // 全リード（スプシの件数と一致）と有効リードの両方を出す。アポ・成約は全リードから数え、アポ率は有効リードに対して
+  const prefs = {}; L.forEach(l => { const p = l['都道府県'] || '不明'; const o = prefs[p] = prefs[p] || { all: 0, n: 0, apo: 0, won: 0, sales: 0 }; o.all++; if (l._valid) o.n++; if (l._apo) o.apo++; if (l._won) { o.won++; o.sales += l._sales; } });
   // 回答別（訴求を選んだときだけ）
   let ansHtml = '<div class="sub sm">上の「訴求」を1つ選ぶと、アンケートの回答ごとのアポ率・成約率が出ます。</div>';
   if (F.camp) {
@@ -709,7 +710,7 @@ function renderAna() {
   </div>
   <div class="note">※ その期間に<b>取得したリード</b>が、その後アポ・商談・成約にどれだけつながったかで集計しています（リード起点）。広告費は「設定」で月×訴求ごとに入力した金額です。${M.grossEst ? `粗利の * は未入力分を売上×${D.settings['粗利率の初期値(%)']}%で推定。` : ''}</div>
   <div class="grid kpis" style="margin:12px 0">
-    <div class="card kpi"><div class="l">広告費</div><div class="v">${yenS(M.cost)}</div></div>
+    <div class="card kpi"><div class="l">広告費</div><div class="v">${yenS(M.cost)}</div>${D.adcostAt ? `<div class="s" title="QuanteeADから1日3回（7:30・12:30・17:30）取り込みます。それ以降に使った分はまだ入っていません">QuanteeAD ${esc(String(D.adcostAt).slice(5, 16).replace('-', '/'))} 時点</div>` : ''}</div>
     <div class="card kpi"><div class="l">リード / 有効</div><div class="v">${M.n} / ${M.valid}</div><div class="s">CPL ${yen(div(M.cost, M.n))}・有効CPL ${yen(div(M.cost, M.valid))}</div></div>
     <div class="card kpi"><div class="l">アポ</div><div class="v">${M.apo}件</div><div class="s">アポ率 ${pct(M.apo, M.valid)}・単価 ${yen(div(M.cost, M.apo))}</div></div>
     <div class="card kpi"><div class="l">商談 / 成約</div><div class="v">${M.deal} / ${M.won}</div><div class="s">成約率 ${pct(M.won, M.deal)}・成約単価 ${yen(div(M.cost, M.won))}</div></div>
@@ -743,7 +744,7 @@ function renderAna() {
   <div class="grid two" style="margin-top:12px">
     <div class="card"><h3>架電者別</h3><table><thead><tr><th>架電者</th><th class="num">架電数</th><th class="num">対応リード</th><th class="num">アポ</th><th class="num">アポ率</th><th class="num">成約</th><th class="num">売上</th></tr></thead><tbody>${Object.entries(byCaller).sort((a, b) => b[1].calls - a[1].calls).map(([c, o]) => `<tr><td>${esc(c)}</td><td class="num">${o.calls}</td><td class="num">${o.leads.size}</td><td class="num">${o.apo}</td><td class="num b">${pct(o.apo, o.leads.size)}</td><td class="num">${(wonBy[c] || {}).won || 0}</td><td class="num">${yen((wonBy[c] || {}).sales || 0)}</td></tr>`).join('') || '<tr><td colspan="7" class="empty">架電記録がありません</td></tr>'}</tbody></table><div class="note">成約・売上はアポを取った人に計上</div></div>
     <div class="card"><h3>営業担当別（訪問・商談）</h3><table><thead><tr><th>営業担当</th><th class="num">アポ</th><th class="num">商談実施</th><th class="num">成約</th><th class="num">成約率</th><th class="num">売上</th></tr></thead><tbody>${Object.entries(L.filter(l => l._apo).reduce((o, l) => { const k = l['営業担当'] || '未設定'; const x = o[k] = o[k] || { apo: 0, deal: 0, won: 0, sales: 0 }; x.apo++; if (l._dealDone) x.deal++; if (l._won) { x.won++; x.sales += l._sales; } return o; }, {})).sort((a, b) => b[1].sales - a[1].sales || b[1].apo - a[1].apo).map(([k, x]) => `<tr><td>${esc(k)}</td><td class="num">${x.apo}</td><td class="num">${x.deal}</td><td class="num">${x.won}</td><td class="num b">${pct(x.won, x.deal)}</td><td class="num">${yen(x.sales)}</td></tr>`).join('') || '<tr><td colspan="6" class="empty">データなし</td></tr>'}</tbody></table></div>
-    <div class="card"><h3>都道府県別</h3><div class="tblwrap" style="max-height:320px"><table><thead><tr><th>都道府県</th><th class="num">有効リード</th><th class="num">アポ</th><th class="num">アポ率</th><th class="num">成約</th><th class="num">売上</th></tr></thead><tbody>${Object.entries(prefs).sort((a, b) => b[1].n - a[1].n).map(([p, o]) => `<tr><td>${esc(p)}</td><td class="num">${o.n}</td><td class="num">${o.apo}</td><td class="num b">${pct(o.apo, o.n)}</td><td class="num">${o.won}</td><td class="num">${yen(o.sales)}</td></tr>`).join('')}</tbody></table></div></div>
+    <div class="card"><h3>都道府県別</h3><div class="tblwrap" style="max-height:320px"><table><thead><tr><th>都道府県</th><th class="num">リード</th><th class="num">有効リード</th><th class="num">アポ</th><th class="num">アポ率</th><th class="num">成約</th><th class="num">売上</th></tr></thead><tbody>${Object.entries(prefs).sort((a, b) => b[1].all - a[1].all || b[1].n - a[1].n).map(([p, o]) => `<tr><td>${esc(p)}</td><td class="num">${o.all}</td><td class="num">${o.n}</td><td class="num">${o.apo}</td><td class="num b">${pct(o.apo, o.n)}</td><td class="num">${o.won}</td><td class="num">${yen(o.sales)}</td></tr>`).join('') || '<tr><td colspan="7" class="empty">データなし</td></tr>'}</tbody></table></div><div class="note">リード＝すべて（スプレッドシートの件数と同じ）。有効リード＝${esc((D.validRule && D.validRule.label) || '')}。アポ率は有効リードに対して。</div></div>
   </div>
   <h2>アンケート回答別 ${F.camp ? '— ' + esc(campName(F.camp)) : ''}</h2>
   <div class="card">${ansHtml}</div>`;
@@ -782,7 +783,7 @@ function renderSet() {
   const R = D.master.results, cats = [...new Set(R.map(r => r.cat))];
   $('#p-set').innerHTML = `
   ${admin ? '' : '<div class="hint">設定の変更は管理者のみです（表示のみ）。</div>'}
-  <h2>広告費（月 × 訴求）</h2>
+  <h2>広告費（月 × 訴求）</h2>${D.adcostAt ? `<div class="hint">QuanteeADから1日3回（7:30・12:30・17:30）自動で取り込んでいます。最新の取込：${esc(D.adcostAt)}。その後に使った分はまだ入っていません。</div>` : ''}
   <div class="note">税抜・手数料込みなど、クライアントの実質負担額で入力してください。分析の CPL・アポ単価・成約単価・ROAS・粗利−広告費 に使います。</div>
   <div class="tblwrap"><table><thead><tr><th>訴求</th>${mons.map(m => `<th class="num">${m}</th>`).join('')}</tr></thead><tbody>
   ${camps.map(c => `<tr><td>${esc(c['表示名'] || c['訴求'])}</td>${mons.map(m => `<td class="num"><input class="costin" ${dis} data-ym="${m}" data-camp="${esc(c['訴求'])}" value="${cv(m, c['訴求'])}" inputmode="numeric"></td>`).join('')}</tr>`).join('')}
@@ -805,8 +806,14 @@ function renderSet() {
       <div class="sm b">商談ステータス</div>${D.master.deal.map(v => `<span class="pill">${esc(v)}</span>`).join('')}
       <div class="sm b" style="margin-top:8px">失注理由</div>${D.master.lost.map(v => `<span class="pill">${esc(v)}</span>`).join('')}
       <div class="sm b" style="margin-top:8px">商材</div>${D.master.product.map(v => `<span class="pill">${esc(v)}</span>`).join('')}
-      <div class="sm b" style="margin-top:8px">架電者</div>${D.master.callers.map(v => `<span class="pill">${esc(v)}</span>`).join('')}
     </div>
+  </div>
+  <h2>架電者・営業担当</h2>
+  <div class="note">架電者＝電話をかける人（架電の記録・担当者の選択肢）。営業担当＝アポ後に訪問・商談する人（リード詳細の「営業担当」の選択肢・成果分析の営業担当別）。1行に1名ずつ入力してください。</div>
+  <div class="grid two">
+    ${[['架電者', D.master.callers, 'callers'], ['営業担当', D.master.reps || [], 'reps']].map(([t, list, id]) => `<div class="card"><h3>${t}</h3>
+      ${admin ? `<textarea id="nm-${id}" rows="6" style="width:100%" placeholder="${t === '営業担当' ? '例：\n山田（営業）\n佐藤（営業）' : '例：\n田中\n鈴木'}">${esc(list.join('\n'))}</textarea>
+      <p><button class="btn pri" data-names="${t}" data-src="nm-${id}">${t}を保存</button></p>` : (list.map(v => `<span class="pill">${esc(v)}</span>`).join('') || '<span class="sub">未登録</span>')}</div>`).join('')}
   </div>
   ${admin ? `<h2>利用者</h2>
   <div class="note">登録したメールアドレスに確認コードが届き、ログインできます。ログイン画面：${D.loginUrl ? `<a href="${esc(D.loginUrl)}" target="_blank">${esc(D.loginUrl)}</a> <button class="btn sm" data-copy="${esc(D.loginUrl)}">コピー</button>` : '未設定'}<br>退職・担当変更のときは「無効にする」。「強制ログアウト」はその人のログイン中の端末をすべてログアウトさせます。</div>
@@ -827,6 +834,10 @@ function renderSet() {
     const rows = [...document.querySelectorAll('tr[data-c]')].map(tr => { const o = { '訴求': tr.dataset.c }; tr.querySelectorAll('[data-f]').forEach(i => o[i.dataset.f] = i.value); return o; });
     await call('api_saveCampaigns', rows); toast('訴求を保存しました'); load();
   };
+  document.querySelectorAll('[data-names]').forEach(b => b.onclick = async () => {
+    const t = b.dataset.names, names = $('#' + b.dataset.src).value.split(/\n/).map(v => v.trim()).filter(v => v);
+    await call('api_saveNames', t, names); toast(t + 'を保存しました（' + names.length + '名）'); load();
+  });
   $('#saveSet').onclick = async () => {
     const o = {}; document.querySelectorAll('[data-s]').forEach(i => o[i.dataset.s] = i.value);
     await call('api_saveSettings', o); toast('設定を保存しました'); load();
@@ -928,7 +939,7 @@ function drawLead(l, logs) {
       <div class="form">
         <label>商談ステータス</label><select id="dDeal"><option value="">-</option>${D.master.deal.map(v => `<option ${DR.deal === v ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select>
         <label>アポ日時</label><div><input type="datetime-local" id="dApo" value="${dt(l['アポ日時'])}"> <select id="dApoType"><option value="">-</option>${D.master.apoType.map(v => `<option ${l['アポ形式'] === v ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></div>
-        <label>営業担当</label><div><input id="dRep" list="repList" value="${esc(l['営業担当'] || '')}" placeholder="訪問・商談の担当"><datalist id="repList">${(D.master.reps || []).map(v => `<option>${esc(v)}</option>`).join('')}</datalist></div>
+        <label>営業担当</label><div>${(D.master.reps || []).length ? `<select id="dRep"><option value="">-</option>${[...new Set((D.master.reps || []).concat(l['営業担当'] ? [l['営業担当']] : []))].map(v => `<option ${l['営業担当'] === v ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select>` : `<input id="dRep" value="${esc(l['営業担当'] || '')}" placeholder="訪問・商談の担当">`} <span class="sub sm">選択肢は 設定 &gt; 架電者・営業担当</span></div>
         <label>商談実施日</label><input type="date" id="dDate" value="${esc(String(l['商談実施日']).slice(0, 10))}">
         <label>見積金額</label><input id="dQuote" inputmode="numeric" value="${esc(l['見積金額'])}" placeholder="円">
         <label>商材</label><select id="dProd"><option value="">-</option>${D.master.product.map(v => `<option ${l['商材'] === v ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select>
@@ -1014,11 +1025,13 @@ const HUBM = [['n', 'リード'], ['valid', '有効リード'], ['apo', 'アポ'
 
 function hubInit() {
   document.title = 'ExKey 案件一括管理';
-  $('#nav').innerHTML = `<button data-p="hub" class="on">全社比較</button><button data-p="ana">会社別の成果分析</button>
+  $('#nav').innerHTML = `<button data-p="hub" class="on">全社比較</button><button data-p="camp">訴求別</button><button data-p="ana">会社別の成果分析</button>
     <select id="hubCo" title="会社" style="margin-left:6px"></select>`;
   const sec = document.createElement('section'); sec.id = 'p-hub'; $('main').prepend(sec);
+  const sec2 = document.createElement('section'); sec2.id = 'p-hubcamp'; sec2.hidden = true; sec.after(sec2);
+  document.head.insertAdjacentHTML('beforeend', '<style>tr.grp td{background:#f6f8fc;border-top:2px solid #e3e8f0}tr.sub-row td{color:#444}</style>');
   UI.page = 'hub';
-  UI.hub = { from: '', to: '', metric: 'apo' };
+  UI.hub = { from: '', to: '', metric: 'apo', split: true, co: '', cmetric: 'cpa' };
 }
 
 function hubUse(name) {
@@ -1063,10 +1076,11 @@ function hubRender() {
   ['home', 'list', 'set'].forEach(p => ($('#p-' + p).hidden = true));
   $('#p-ana').hidden = UI.page !== 'ana';
   $('#p-hub').hidden = UI.page !== 'hub';
+  $('#p-hubcamp').hidden = UI.page !== 'camp';
   if (!H) return;
   $('#hubCo').value = UI.hubSel || '';
   $('#hubCo').style.display = UI.page === 'ana' ? '' : 'none';
-  if (UI.page === 'ana') { hubUse(UI.hubSel); renderAna(); } else renderHub();
+  if (UI.page === 'ana') { hubUse(UI.hubSel); renderAna(); } else if (UI.page === 'camp') renderHubCamp(); else renderHub();
 }
 
 // 1社・期間の成果（各社の画面の「リード取得月」の集計と同じ）
@@ -1090,6 +1104,100 @@ function hubFmt(v, k) {
   if (['sales', 'cost', 'cpl', 'cpa', 'cpw'].includes(k)) return yen(v);
   if (k === 'apoRate') return (v * 100).toFixed(1) + '%';
   return Number(v).toLocaleString();
+}
+
+// 成果の表（全社比較・訴求別で共通）
+const hubHead = first => `<thead><tr><th>${first}</th><th class="num">広告費</th><th class="num">リード</th><th class="num">有効</th><th class="num">有効率</th><th class="num cpa">CPL</th><th class="num">有効CPL</th><th class="num">架電率</th><th class="num">接続率</th><th class="num">アポ</th><th class="num">アポ率</th><th class="num cpa">アポ単価</th><th class="num">商談</th><th class="num">商談率</th><th class="num">成約</th><th class="num">成約率</th><th class="num cpa">成約単価</th><th class="num">売上</th><th class="num">粗利</th><th class="num">粗利−広告費</th><th class="num">ROAS</th></tr></thead>`;
+const hubRow = (label, m, extra = '') => `<tr ${extra}><td>${label}</td>
+    <td class="num">${yen(m.cost)}</td><td class="num">${m.n}</td><td class="num">${m.valid}</td><td class="num">${pct(m.valid, m.n)}</td><td class="num cpa">${yen(div(m.cost, m.n))}</td><td class="num">${yen(div(m.cost, m.valid))}</td>
+    <td class="num">${pct(m.called, m.uniq)}</td><td class="num">${pct(m.conn, m.called)}</td>
+    <td class="num b">${m.apo}</td><td class="num">${pct(m.apo, m.valid)}</td><td class="num cpa">${yen(div(m.cost, m.apo))}</td>
+    <td class="num">${m.deal}</td><td class="num">${pct(m.deal, m.apo)}</td>
+    <td class="num b">${m.won}</td><td class="num">${pct(m.won, m.deal)}</td><td class="num cpa">${yen(div(m.cost, m.won))}</td>
+    <td class="num b">${yen(m.sales)}</td><td class="num">${yen(m.gross)}${m.grossEst ? '<span class="sub">*</span>' : ''}</td><td class="num ${m.profit < 0 ? 'red' : ''}">${m.cost ? yen(m.profit) : '-'}</td><td class="num">${m.cost ? (m.sales / m.cost * 100).toFixed(0) + '%' : '-'}</td></tr>`;
+
+// 期間の選択（全社比較・訴求別で共通）
+function hubPeriod() {
+  const F = UI.hub;
+  return `リード取得月 <select class="hfrom">${UI.hub.mons.map(m => `<option ${F.from === m ? 'selected' : ''}>${m}</option>`).join('')}</select>〜
+    <select class="hto">${UI.hub.mons.map(m => `<option ${F.to === m ? 'selected' : ''}>${m}</option>`).join('')}</select>
+    <button class="btn sm" data-hq="this">今月</button><button class="btn sm" data-hq="last">先月</button><button class="btn sm" data-hq="all">全期間</button>`;
+}
+function hubPeriodBind(root, redraw) {
+  const F = UI.hub;
+  root.querySelector('.hfrom').onchange = e => { F.from = e.target.value; if (F.from > F.to) F.to = F.from; redraw(); };
+  root.querySelector('.hto').onchange = e => { F.to = e.target.value; if (F.from > F.to) F.from = F.to; redraw(); };
+  root.querySelectorAll('[data-hq]').forEach(b => (b.onclick = () => {
+    const c = today().slice(0, 7); const [y, m] = c.split('-').map(Number); const last = m === 1 ? `${y - 1}-12` : `${y}-${p2(m - 1)}`;
+    if (b.dataset.hq === 'this') F.from = F.to = c; if (b.dataset.hq === 'last') F.from = F.to = last; if (b.dataset.hq === 'all') { F.from = UI.hub.mons[0]; F.to = c; }
+    redraw();
+  }));
+}
+
+// ---------- 訴求別（会社をまたいで、統一名称のコード【E1-1】などでまとめる） ----------
+const hubCode = s => { const m = /【([A-Z]\d+-\d+)】/.exec(String(s || '')); return m ? m[1] : ''; };
+// 表示用の訴求名：先頭の地域タグ（【東北】【関東】など）を外す
+const hubCampLabel = s => String(s || '').replace(/^(【[^】]*[^A-Z0-9\-】][^】]*】)+/, '').trim() || String(s || '');
+function hubCampRows(months) {
+  const G = {};
+  H.clients.filter(c => c.ok && (!UI.hub.co || c.name === UI.hub.co)).forEach(c => {
+    hubUse(c.name);
+    const camps = D.campaigns.map(cp => cp['訴求']);
+    D.adcost.forEach(a => { if (a.camp && !camps.includes(a.camp) && months.includes(a.ym)) camps.push(a.camp); });
+    camps.forEach(name => {
+      const cp = CAMP(name), disp = cp['表示名'] || name;
+      const code = hubCode(disp) || hubCode(name);
+      const leads = D.leads.filter(l => l['訴求'] === name && months.includes(l._ym));
+      const cost = costOf(months, name);
+      if (!leads.length && !cost) return;
+      const key = code || 'name:' + hubCampLabel(disp);
+      // まとめた行の名前は特典額（2万・3万など）を外す（会社によって違うため）
+      const g = G[key] = G[key] || { key, code, label: code ? hubCampLabel(disp).replace(/\s*[（(][^）)]*\d+\s*万円?[^）)]*[）)]\s*$/, '') : hubCampLabel(disp), subs: [] };
+      g.subs.push({ co: c.name, camp: name, disp, live: cp['出稿'] || '', m: metrics(leads, cost) });
+    });
+  });
+  hubUse(UI.hubSel);
+  return Object.values(G).map(g => {
+    g.m = hubTotal(g.subs.map(x => x.m));
+    g.live = g.subs.some(x => x.live === '出稿中') ? '出稿中' : g.subs.some(x => x.live) ? '停止中' : '';
+    g.subs.sort((a, b) => b.m.cost - a.m.cost || b.m.n - a.m.n);
+    return g;
+  }).sort((a, b) => (b.code ? 1 : 0) - (a.code ? 1 : 0) || b.m.cost - a.m.cost || b.m.n - a.m.n);
+}
+function renderHubCamp() {
+  const F = UI.hub, oks = H.clients.filter(c => c.ok);
+  const months = monthsBetween(F.from, F.to);
+  const rows = hubCampRows(months);
+  const T = hubTotal(rows.map(g => g.m));
+  const tag = v => v ? ` <span class="tag ${v === '出稿中' ? 'live' : 'stop'}">${esc(v)}</span>` : '';
+  const body = rows.map(g => hubRow(`<b>${g.code ? '' : '<span class="tag">コードなし</span> '}${esc(g.label)}</b>${tag(g.live)}${g.subs.length > 1 ? ` <span class="sub sm">${g.subs.length}社/訴求</span>` : ''}`, g.m, F.split ? 'class="grp"' : '')
+    + (F.split ? g.subs.map(x => hubRow(`<span style="padding-left:14px" class="sm">└ <a href="#" data-co="${esc(x.co)}" data-camp="${esc(x.camp)}">${esc(x.co)}</a> <span class="sub">${esc(x.disp)}</span>${tag(x.live)}</span>`, x.m, 'class="sub-row"')).join('') : '')).join('');
+  const mk = F.cmetric;
+  const chartRows = rows.filter(g => hubVal(g.m, mk) != null).slice(0, 20);
+  $('#p-hubcamp').innerHTML = `
+  <div class="filters">${hubPeriod()}
+    <select id="hcCo"><option value="">すべての会社</option>${oks.map(c => `<option ${F.co === c.name ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select>
+    <label class="sm"><input type="checkbox" id="hcSplit" ${F.split ? 'checked' : ''}> 会社ごとの内訳を出す</label>
+  </div>
+  <div class="note">※ 訴求名の【E1-1】などの統一名称（コード）が同じものを、会社をまたいでまとめています（地域や特典額の違い＝【東北】【関東】・2万/3万なども同じコードならまとめます）。コードのない訴求は名前ごとに出します。数え方は各社の「成果分析」と同じです（その期間に取得したリードがその後どうなったか。広告費はその期間の月の合計）。会社名を押すと、その会社のその訴求の成果分析を開きます。</div>
+  <div class="tblwrap"><table>${hubHead('訴求')}<tbody>${body || '<tr><td colspan="21" class="empty">データなし</td></tr>'}${rows.length > 1 ? hubRow('合計', T, 'class="total"') : ''}</tbody></table></div>
+  <h2 style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">訴求の比較
+    <select id="hcMetric">${HUBM.map(([k, t]) => `<option value="${k}" ${mk === k ? 'selected' : ''}>${t}</option>`).join('')}</select></h2>
+  <div class="card"><canvas id="chHubCamp" height="${Math.max(80, chartRows.length * 9)}"></canvas></div>`;
+  const root = $('#p-hubcamp');
+  hubPeriodBind(root, renderHubCamp);
+  $('#hcCo').onchange = e => { F.co = e.target.value; renderHubCamp(); };
+  $('#hcSplit').onchange = e => { F.split = e.target.checked; renderHubCamp(); };
+  $('#hcMetric').onchange = e => { F.cmetric = e.target.value; renderHubCamp(); };
+  root.querySelectorAll('[data-co]').forEach(a => (a.onclick = e => { e.preventDefault(); hubUse(a.dataset.co); UI.ana.from = F.from; UI.ana.to = F.to; UI.ana.camp = a.dataset.camp || ''; UI.ana.media = ''; UI.page = 'ana'; render(); }));
+  charts.forEach(c => c.destroy()); charts = [];
+  if (window.Chart && chartRows.length) {
+    charts.push(new Chart($('#chHubCamp'), {
+      type: 'bar',
+      data: { labels: chartRows.map(g => g.label), datasets: [{ label: (HUBM.find(x => x[0] === mk) || [])[1], data: chartRows.map(g => { const v = hubVal(g.m, mk); return mk === 'apoRate' ? +(v * 100).toFixed(1) : Math.round(v); }), backgroundColor: '#1f5eff' }] },
+      options: { indexAxis: 'y', responsive: true, plugins: { legend: { display: false }, title: { display: true, text: (HUBM.find(x => x[0] === mk) || [])[1] + '（訴求別・全社合計）' } }, scales: { x: { beginAtZero: true } } },
+    }));
+  }
 }
 
 function renderHub() {
