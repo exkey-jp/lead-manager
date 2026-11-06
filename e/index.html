@@ -286,6 +286,7 @@ function prep() {
   D.leads.forEach(l => {
     const r = toD(l['受信日時']);
     l._recv = r; l._ym = l['受信日時'].slice(0, 7);
+    if (r) { l._wd = r.getDay(); l._hour = r.getHours(); l._holiday = isHoliday(r); }
     l._start = r ? startOf(r) : null;
     l._wait = l._start ? (now - l._start) / 60e3 : 0; // 起点からの経過分
     // 取込データで時刻のない初回架電日時（日付だけ）は、速さの計算に使わない
@@ -629,6 +630,62 @@ function monthsBetween(f, t) { const out = []; let [y, m] = f.split('-').map(Num
 
 // ---------------- 成果分析 ----------------
 let charts = [];
+// ---------------- 曜日・時間帯の分析（各社の成果分析と、社内の案件一括管理で共通） ----------------
+// 日本の祝日（振替休日・国民の休日を含む）。毎年末に翌年分を足す
+const JP_HOLIDAYS = new Set([
+  '2025-01-01', '2025-01-13', '2025-02-11', '2025-02-23', '2025-02-24', '2025-03-20', '2025-04-29', '2025-05-03', '2025-05-04', '2025-05-05', '2025-05-06', '2025-07-21', '2025-08-11', '2025-09-15', '2025-09-23', '2025-10-13', '2025-11-03', '2025-11-23', '2025-11-24',
+  '2026-01-01', '2026-01-12', '2026-02-11', '2026-02-23', '2026-03-20', '2026-04-29', '2026-05-03', '2026-05-04', '2026-05-05', '2026-05-06', '2026-07-20', '2026-08-11', '2026-09-21', '2026-09-22', '2026-09-23', '2026-10-12', '2026-11-03', '2026-11-23',
+  '2027-01-01', '2027-01-11', '2027-02-11', '2027-02-23', '2027-03-21', '2027-03-22', '2027-04-29', '2027-05-03', '2027-05-04', '2027-05-05', '2027-07-19', '2027-08-11', '2027-09-20', '2027-09-23', '2027-10-11', '2027-11-03', '2027-11-23',
+]);
+const WDAY = ['日', '月', '火', '水', '木', '金', '土'];
+const ymdOf = d => `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`;
+const isHoliday = d => d.getDay() === 0 || d.getDay() === 6 || JP_HOLIDAYS.has(ymdOf(d));
+// 期間（月の一覧）の日数を、曜日別・平日/休日別に数える（今日まで）
+function dayCounts(months) {
+  const wd = [0, 0, 0, 0, 0, 0, 0], kind = { 平日: 0, 休日: 0 }, end = ymdOf(new Date());
+  months.forEach(ym => { const [y, m] = ym.split('-').map(Number); for (let d = new Date(y, m - 1, 1); d.getMonth() === m - 1 && ymdOf(d) <= end; d.setDate(d.getDate() + 1)) { wd[d.getDay()]++; kind[isHoliday(d) ? '休日' : '平日']++; } });
+  return { wd, kind };
+}
+// L＝対象のリード（prep済み）、months＝期間。戻り値 { html, draw() }。id は同じ画面で重ならない接頭辞
+function timeAnalysis(L, months, id) {
+  const X = L.filter(l => l._recv);
+  const dc = dayCounts(months);
+  const trow = (label, m, days) => `<tr><td>${label}</td>${days != null ? `<td class="num">${days}</td>` : ''}<td class="num b">${m.n}</td>${days != null ? `<td class="num">${days ? (m.n / days).toFixed(1) : '-'}</td>` : ''}<td class="num">${pct(m.valid, m.n)}</td><td class="num">${pct(m.conn, m.called)}</td><td class="num b">${m.apo}</td><td class="num">${pct(m.apo, m.valid)}</td><td class="num">${m.won}</td><td class="num">${yen(m.sales)}</td></tr>`;
+  const th = (first, days) => `<thead><tr><th>${first}</th>${days ? '<th class="num">日数</th>' : ''}<th class="num">リード</th>${days ? '<th class="num">1日あたり</th>' : ''}<th class="num">有効率</th><th class="num">接続率</th><th class="num">アポ</th><th class="num">アポ率</th><th class="num">成約</th><th class="num">売上</th></tr></thead>`;
+  const kinds = ['平日', '休日'].map(k => ({ k, m: metrics(X.filter(l => (l._holiday ? '休日' : '平日') === k), 0), days: dc.kind[k] }));
+  const order = [1, 2, 3, 4, 5, 6, 0];
+  const wds = order.map(w => ({ w, m: metrics(X.filter(l => l._wd === w), 0), days: dc.wd[w] }));
+  const hours = [...Array(24).keys()].map(h => ({ h, m: metrics(X.filter(l => l._hour === h), 0) }));
+  // 曜日×時間（リード件数）
+  const grid = order.map(w => [...Array(24).keys()].map(h => X.filter(l => l._wd === w && l._hour === h).length));
+  const gmax = Math.max(1, ...grid.flat());
+  const cell = v => `<td class="num" style="background:rgba(31,94,255,${(v / gmax * 0.85).toFixed(2)});color:${v / gmax > 0.5 ? '#fff' : 'inherit'};padding:4px 3px;min-width:22px">${v || ''}</td>`;
+  const html = `
+  <h2>曜日・時間帯の分析 <span class="sub sm">リードを受信した日時で集計（${X.length}件）</span></h2>
+  <div class="note">※ 休日＝土日・祝日（振替休日を含む）。「1日あたり」はリード件数÷期間内のその曜日（平日/休日）の日数（今日まで）。アポ率＝アポ÷有効リード、接続率＝本人と話せたリード÷架電したリード。広告費は日・時間で分けられないため出していません。</div>
+  <div class="grid two">
+    <div class="card"><h3>平日・休日（土日祝）</h3><div class="tblwrap"><table>${th('区分', true)}<tbody>${kinds.map(x => trow(x.k, x.m, x.days)).join('')}</tbody></table></div></div>
+    <div class="card"><h3>曜日別</h3><div class="tblwrap"><table>${th('曜日', true)}<tbody>${wds.map(x => trow(`<span style="color:${x.w === 0 ? '#d93025' : x.w === 6 ? '#1f5eff' : 'inherit'}">${WDAY[x.w]}</span>`, x.m, x.days)).join('')}</tbody></table></div></div>
+  </div>
+  <div class="grid two" style="margin-top:12px">
+    <div class="card"><h3>時間帯別</h3><canvas id="${id}Hour" height="220"></canvas></div>
+    <div class="card"><h3>時間帯別（表）</h3><div class="tblwrap" style="max-height:330px"><table>${th('時間帯', false)}<tbody>${hours.map(x => trow(x.h + '時台', x.m, null)).join('')}</tbody></table></div></div>
+  </div>
+  <div class="card" style="margin-top:12px"><h3>曜日 × 時間帯（リード件数）</h3><div class="tblwrap"><table><thead><tr><th></th>${[...Array(24).keys()].map(h => `<th class="num" style="padding:4px 3px">${h}</th>`).join('')}</tr></thead><tbody>${grid.map((r, i) => `<tr><td>${WDAY[order[i]]}</td>${r.map(cell).join('')}</tr>`).join('')}</tbody></table></div><div class="note">色が濃いほどリードが多い時間帯です（数字は件数）。</div></div>`;
+  const draw = () => {
+    if (!window.Chart || !document.getElementById(id + 'Hour')) return;
+    charts.push(new Chart(document.getElementById(id + 'Hour'), {
+      data: { labels: hours.map(x => x.h + '時'), datasets: [
+        { type: 'line', label: 'アポ率', data: hours.map(x => x.m.valid ? +(x.m.apo / x.m.valid * 100).toFixed(1) : null), yAxisID: 'y2', borderColor: '#e8710a', backgroundColor: '#e8710a', spanGaps: true, order: 0 },
+        { type: 'bar', label: 'リード', data: hours.map(x => x.m.n), backgroundColor: '#c6d4ff', order: 2 },
+        { type: 'bar', label: 'アポ', data: hours.map(x => x.m.apo), backgroundColor: '#1f5eff', order: 1 },
+      ] },
+      options: { responsive: true, interaction: { mode: 'index', intersect: false }, scales: { y: { beginAtZero: true, title: { display: true, text: '件' } }, y2: { position: 'right', beginAtZero: true, grid: { display: false }, ticks: { callback: v => v + '%' } } } },
+    }));
+  };
+  return { html, draw };
+}
+
 function renderAna() {
   const F = UI.ana;
   const allMons = [...new Set(D.leads.map(l => l._ym).concat(D.adcost.map(c => c.ym)))].sort();
@@ -688,13 +745,15 @@ function renderAna() {
   // 何回目でアポ
   const callNo = tally(L.filter(l => l._apoCallNo).map(l => l._apoCallNo >= 6 ? '6回目以降' : l._apoCallNo + '回目')).sort((a, b) => a[0].localeCompare(b[0]));
   // 都道府県
-  const prefs = {}; valid.forEach(l => { const p = l['都道府県'] || '不明'; const o = prefs[p] = prefs[p] || { n: 0, apo: 0, won: 0, sales: 0 }; o.n++; if (l._apo) o.apo++; if (l._won) { o.won++; o.sales += l._sales; } });
+  // 全リード（スプシの件数と一致）と有効リードの両方を出す。アポ・成約は全リードから数え、アポ率は有効リードに対して
+  const prefs = {}; L.forEach(l => { const p = l['都道府県'] || '不明'; const o = prefs[p] = prefs[p] || { all: 0, n: 0, apo: 0, won: 0, sales: 0 }; o.all++; if (l._valid) o.n++; if (l._apo) o.apo++; if (l._won) { o.won++; o.sales += l._sales; } });
   // 回答別（訴求を選んだときだけ）
   let ansHtml = '<div class="sub sm">上の「訴求」を1つ選ぶと、アンケートの回答ごとのアポ率・成約率が出ます。</div>';
   if (F.camp) {
     const qs = {}; valid.forEach(l => Object.entries(l._ans).forEach(([q, a]) => { const o = (qs[q] = qs[q] || {})[a] = (qs[q] || {})[a] || { n: 0, apo: 0, won: 0 }; o.n++; if (l._apo) o.apo++; if (l._won) o.won++; }));
     ansHtml = Object.entries(qs).map(([q, as]) => `<div style="margin-bottom:14px"><div class="b sm" style="margin-bottom:4px">${esc(q)}</div><table><thead><tr><th>回答</th><th class="num">有効リード</th><th class="num">アポ</th><th class="num">アポ率</th><th class="num">成約</th></tr></thead><tbody>${Object.entries(as).sort((a, b) => b[1].n - a[1].n).map(([a, o]) => `<tr><td>${esc(a)}</td><td class="num">${o.n}</td><td class="num">${o.apo}</td><td class="num b">${pct(o.apo, o.n)}</td><td class="num">${o.won}</td></tr>`).join('')}</tbody></table></div>`).join('') || '<div class="sub sm">回答データがありません</div>';
   }
+  const TA = timeAnalysis(L, months, 'ta');
   const fun = [['リード', M.n], ['有効リード', M.valid], ['本人と接続', M.validConn], ['アポ', M.apo], [(D.dealRule && D.dealRule.label) || '商談実施', M.deal], ['成約', M.won]];
   const funMax = Math.max(1, M.n);
 
@@ -708,7 +767,7 @@ function renderAna() {
   </div>
   <div class="note">※ その期間に<b>取得したリード</b>が、その後アポ・商談・成約にどれだけつながったかで集計しています（リード起点）。広告費は「設定」で月×訴求ごとに入力した金額です。${M.grossEst ? `粗利の * は未入力分を売上×${D.settings['粗利率の初期値(%)']}%で推定。` : ''}</div>
   <div class="grid kpis" style="margin:12px 0">
-    <div class="card kpi"><div class="l">広告費</div><div class="v">${yenS(M.cost)}</div></div>
+    <div class="card kpi"><div class="l">広告費</div><div class="v">${yenS(M.cost)}</div>${D.adcostAt ? `<div class="s" title="QuanteeADから1日3回（7:30・12:30・17:30）取り込みます。それ以降に使った分はまだ入っていません">QuanteeAD ${esc(String(D.adcostAt).slice(5, 16).replace('-', '/'))} 時点</div>` : ''}</div>
     <div class="card kpi"><div class="l">リード / 有効</div><div class="v">${M.n} / ${M.valid}</div><div class="s">CPL ${yen(div(M.cost, M.n))}・有効CPL ${yen(div(M.cost, M.valid))}</div></div>
     <div class="card kpi"><div class="l">アポ</div><div class="v">${M.apo}件</div><div class="s">アポ率 ${pct(M.apo, M.valid)}・単価 ${yen(div(M.cost, M.apo))}</div></div>
     <div class="card kpi"><div class="l">商談 / 成約</div><div class="v">${M.deal} / ${M.won}</div><div class="s">成約率 ${pct(M.won, M.deal)}・成約単価 ${yen(div(M.cost, M.won))}</div></div>
@@ -742,8 +801,9 @@ function renderAna() {
   <div class="grid two" style="margin-top:12px">
     <div class="card"><h3>架電者別</h3><table><thead><tr><th>架電者</th><th class="num">架電数</th><th class="num">対応リード</th><th class="num">アポ</th><th class="num">アポ率</th><th class="num">成約</th><th class="num">売上</th></tr></thead><tbody>${Object.entries(byCaller).sort((a, b) => b[1].calls - a[1].calls).map(([c, o]) => `<tr><td>${esc(c)}</td><td class="num">${o.calls}</td><td class="num">${o.leads.size}</td><td class="num">${o.apo}</td><td class="num b">${pct(o.apo, o.leads.size)}</td><td class="num">${(wonBy[c] || {}).won || 0}</td><td class="num">${yen((wonBy[c] || {}).sales || 0)}</td></tr>`).join('') || '<tr><td colspan="7" class="empty">架電記録がありません</td></tr>'}</tbody></table><div class="note">成約・売上はアポを取った人に計上</div></div>
     <div class="card"><h3>営業担当別（訪問・商談）</h3><table><thead><tr><th>営業担当</th><th class="num">アポ</th><th class="num">商談実施</th><th class="num">成約</th><th class="num">成約率</th><th class="num">売上</th></tr></thead><tbody>${Object.entries(L.filter(l => l._apo).reduce((o, l) => { const k = l['営業担当'] || '未設定'; const x = o[k] = o[k] || { apo: 0, deal: 0, won: 0, sales: 0 }; x.apo++; if (l._dealDone) x.deal++; if (l._won) { x.won++; x.sales += l._sales; } return o; }, {})).sort((a, b) => b[1].sales - a[1].sales || b[1].apo - a[1].apo).map(([k, x]) => `<tr><td>${esc(k)}</td><td class="num">${x.apo}</td><td class="num">${x.deal}</td><td class="num">${x.won}</td><td class="num b">${pct(x.won, x.deal)}</td><td class="num">${yen(x.sales)}</td></tr>`).join('') || '<tr><td colspan="6" class="empty">データなし</td></tr>'}</tbody></table></div>
-    <div class="card"><h3>都道府県別</h3><div class="tblwrap" style="max-height:320px"><table><thead><tr><th>都道府県</th><th class="num">有効リード</th><th class="num">アポ</th><th class="num">アポ率</th><th class="num">成約</th><th class="num">売上</th></tr></thead><tbody>${Object.entries(prefs).sort((a, b) => b[1].n - a[1].n).map(([p, o]) => `<tr><td>${esc(p)}</td><td class="num">${o.n}</td><td class="num">${o.apo}</td><td class="num b">${pct(o.apo, o.n)}</td><td class="num">${o.won}</td><td class="num">${yen(o.sales)}</td></tr>`).join('')}</tbody></table></div></div>
+    <div class="card"><h3>都道府県別</h3><div class="tblwrap" style="max-height:320px"><table><thead><tr><th>都道府県</th><th class="num">リード</th><th class="num">有効リード</th><th class="num">アポ</th><th class="num">アポ率</th><th class="num">成約</th><th class="num">売上</th></tr></thead><tbody>${Object.entries(prefs).sort((a, b) => b[1].all - a[1].all || b[1].n - a[1].n).map(([p, o]) => `<tr><td>${esc(p)}</td><td class="num">${o.all}</td><td class="num">${o.n}</td><td class="num">${o.apo}</td><td class="num b">${pct(o.apo, o.n)}</td><td class="num">${o.won}</td><td class="num">${yen(o.sales)}</td></tr>`).join('') || '<tr><td colspan="7" class="empty">データなし</td></tr>'}</tbody></table></div><div class="note">リード＝すべて（スプレッドシートの件数と同じ）。有効リード＝${esc((D.validRule && D.validRule.label) || '')}。アポ率は有効リードに対して。</div></div>
   </div>
+  ${TA.html}
   <h2>アンケート回答別 ${F.camp ? '— ' + esc(campName(F.camp)) : ''}</h2>
   <div class="card">${ansHtml}</div>`;
 
@@ -757,6 +817,7 @@ function renderAna() {
     renderAna();
   });
   charts.forEach(c => c.destroy()); charts = [];
+  TA.draw();
   if (window.Chart) {
     charts.push(new Chart($('#chMon'), {
       data: { labels: byMon.map(x => x.ym), datasets: [
@@ -781,7 +842,7 @@ function renderSet() {
   const R = D.master.results, cats = [...new Set(R.map(r => r.cat))];
   $('#p-set').innerHTML = `
   ${admin ? '' : '<div class="hint">設定の変更は管理者のみです（表示のみ）。</div>'}
-  <h2>広告費（月 × 訴求）</h2>
+  <h2>広告費（月 × 訴求）</h2>${D.adcostAt ? `<div class="hint">QuanteeADから1日3回（7:30・12:30・17:30）自動で取り込んでいます。最新の取込：${esc(D.adcostAt)}。その後に使った分はまだ入っていません。</div>` : ''}
   <div class="note">税抜・手数料込みなど、クライアントの実質負担額で入力してください。分析の CPL・アポ単価・成約単価・ROAS・粗利−広告費 に使います。</div>
   <div class="tblwrap"><table><thead><tr><th>訴求</th>${mons.map(m => `<th class="num">${m}</th>`).join('')}</tr></thead><tbody>
   ${camps.map(c => `<tr><td>${esc(c['表示名'] || c['訴求'])}</td>${mons.map(m => `<td class="num"><input class="costin" ${dis} data-ym="${m}" data-camp="${esc(c['訴求'])}" value="${cv(m, c['訴求'])}" inputmode="numeric"></td>`).join('')}</tr>`).join('')}
@@ -804,8 +865,14 @@ function renderSet() {
       <div class="sm b">商談ステータス</div>${D.master.deal.map(v => `<span class="pill">${esc(v)}</span>`).join('')}
       <div class="sm b" style="margin-top:8px">失注理由</div>${D.master.lost.map(v => `<span class="pill">${esc(v)}</span>`).join('')}
       <div class="sm b" style="margin-top:8px">商材</div>${D.master.product.map(v => `<span class="pill">${esc(v)}</span>`).join('')}
-      <div class="sm b" style="margin-top:8px">架電者</div>${D.master.callers.map(v => `<span class="pill">${esc(v)}</span>`).join('')}
     </div>
+  </div>
+  <h2>架電者・営業担当</h2>
+  <div class="note">架電者＝電話をかける人（架電の記録・担当者の選択肢）。営業担当＝アポ後に訪問・商談する人（リード詳細の「営業担当」の選択肢・成果分析の営業担当別）。1行に1名ずつ入力してください。</div>
+  <div class="grid two">
+    ${[['架電者', D.master.callers, 'callers'], ['営業担当', D.master.reps || [], 'reps']].map(([t, list, id]) => `<div class="card"><h3>${t}</h3>
+      ${admin ? `<textarea id="nm-${id}" rows="6" style="width:100%" placeholder="${t === '営業担当' ? '例：\n山田（営業）\n佐藤（営業）' : '例：\n田中\n鈴木'}">${esc(list.join('\n'))}</textarea>
+      <p><button class="btn pri" data-names="${t}" data-src="nm-${id}">${t}を保存</button></p>` : (list.map(v => `<span class="pill">${esc(v)}</span>`).join('') || '<span class="sub">未登録</span>')}</div>`).join('')}
   </div>
   ${admin ? `<h2>利用者</h2>
   <div class="note">登録したメールアドレスに確認コードが届き、ログインできます。ログイン画面：${D.loginUrl ? `<a href="${esc(D.loginUrl)}" target="_blank">${esc(D.loginUrl)}</a> <button class="btn sm" data-copy="${esc(D.loginUrl)}">コピー</button>` : '未設定'}<br>退職・担当変更のときは「無効にする」。「強制ログアウト」はその人のログイン中の端末をすべてログアウトさせます。</div>
@@ -826,6 +893,10 @@ function renderSet() {
     const rows = [...document.querySelectorAll('tr[data-c]')].map(tr => { const o = { '訴求': tr.dataset.c }; tr.querySelectorAll('[data-f]').forEach(i => o[i.dataset.f] = i.value); return o; });
     await call('api_saveCampaigns', rows); toast('訴求を保存しました'); load();
   };
+  document.querySelectorAll('[data-names]').forEach(b => b.onclick = async () => {
+    const t = b.dataset.names, names = $('#' + b.dataset.src).value.split(/\n/).map(v => v.trim()).filter(v => v);
+    await call('api_saveNames', t, names); toast(t + 'を保存しました（' + names.length + '名）'); load();
+  });
   $('#saveSet').onclick = async () => {
     const o = {}; document.querySelectorAll('[data-s]').forEach(i => o[i.dataset.s] = i.value);
     await call('api_saveSettings', o); toast('設定を保存しました'); load();
@@ -927,7 +998,7 @@ function drawLead(l, logs) {
       <div class="form">
         <label>商談ステータス</label><select id="dDeal"><option value="">-</option>${D.master.deal.map(v => `<option ${DR.deal === v ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select>
         <label>アポ日時</label><div><input type="datetime-local" id="dApo" value="${dt(l['アポ日時'])}"> <select id="dApoType"><option value="">-</option>${D.master.apoType.map(v => `<option ${l['アポ形式'] === v ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></div>
-        <label>営業担当</label><div><input id="dRep" list="repList" value="${esc(l['営業担当'] || '')}" placeholder="訪問・商談の担当"><datalist id="repList">${(D.master.reps || []).map(v => `<option>${esc(v)}</option>`).join('')}</datalist></div>
+        <label>営業担当</label><div>${(D.master.reps || []).length ? `<select id="dRep"><option value="">-</option>${[...new Set((D.master.reps || []).concat(l['営業担当'] ? [l['営業担当']] : []))].map(v => `<option ${l['営業担当'] === v ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select>` : `<input id="dRep" value="${esc(l['営業担当'] || '')}" placeholder="訪問・商談の担当">`} <span class="sub sm">選択肢は 設定 &gt; 架電者・営業担当</span></div>
         <label>商談実施日</label><input type="date" id="dDate" value="${esc(String(l['商談実施日']).slice(0, 10))}">
         <label>見積金額</label><input id="dQuote" inputmode="numeric" value="${esc(l['見積金額'])}" placeholder="円">
         <label>商材</label><select id="dProd"><option value="">-</option>${D.master.product.map(v => `<option ${l['商材'] === v ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select>
