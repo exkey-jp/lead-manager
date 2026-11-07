@@ -445,6 +445,9 @@ function renderHome(A) {
   const sel = UI.alert === 'all' ? null : A.find(a => a.k === UI.alert);
   let list = sel ? sel.list : A.filter(a => !['new', 'long', 'apo'].includes(a.k)).flatMap(a => a.list.map(l => Object.assign(l, { _why: a.t, _c: a.c })));
   const seen = new Set(); list = list.filter(l => !seen.has(l['リードID']) && seen.add(l['リードID']));
+  // D.alertSkip（例：{対象判定:'対象外'}）に当てはまるリードは「要対応のリード」一覧に出さない（集計・アラート件数には含める）
+  const SK = D.alertSkip || {};
+  if (!sel) list = list.filter(l => !Object.keys(SK).some(k => String((l._ans || {})[k] || '').trim() === SK[k]));
   $('#p-home').innerHTML = `
   <div class="grid kpis" style="margin-bottom:16px">
     <div class="card kpi"><div class="l">今日の新着</div><div class="v">${todayNew}件</div></div>
