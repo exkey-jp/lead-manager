@@ -296,10 +296,8 @@ function prep() {
     // 進捗表に商談日（M列）がある先は商談済み＝アポ済みなので、架電シートの結果にかかわらずアポとして数える
     l._apo = !!(l['アポ日時'] || l['アポ獲得日'] || l['進捗_商談日']);
     const DF = D.dealRule && D.dealRule.dateField; // 商談日の列がある会社は「商談日が入っている＝商談あり」（商談結果がツブレでも数える）
-    // 進捗表を使わない会社は、商談日が空でも以前の入力（商談実施日）があれば商談ありとみなす
-    const dfv = DF ? (l[DF] || (!D.progSheet && ['現調・見積中', '検討中', '成約', '失注'].includes(l['商談ステータス']) ? l['商談実施日'] : '')) : '';
-    l._dealDone = DF ? !!dfv : ((D.dealRule && D.dealRule.count) || ['現調・見積中', '検討中', '成約', '失注']).includes(l['商談ステータス']);
-    l._dealMon = String(dfv || l['商談実施日'] || l['アポ日時'] || l['アポ獲得日'] || '').slice(0, 7);
+    l._dealDone = DF ? !!l[DF] : ((D.dealRule && D.dealRule.count) || ['現調・見積中', '検討中', '成約', '失注']).includes(l['商談ステータス']);
+    l._dealMon = String((DF ? l[DF] : '') || l['商談実施日'] || l['アポ日時'] || l['アポ獲得日'] || '').slice(0, 7);
     l._won = l['ステータス'] === '成約' || l['商談ステータス'] === '成約';
     l._sales = l._won ? num(l['売上']) : 0;
     l._grossEst = l._won && l['粗利'] === '';
@@ -359,17 +357,6 @@ function render() {
   if (UI.page === 'set') renderSet();
 }
 
-// 訪問・商談の経過（アームズ様の「Webアポ進捗管理」と同じ項目）。進捗表から取り込む会社は表示だけ
-const PROGF = [['進捗_初訪日', '初訪日', 'date'], ['進捗_訪問結果', '初訪結果', ['商談設定', '調査設定', '日程調整', '商談設定前', 'NG', 'ツブレ']],
-  ['進捗_調査日', '調査日', 'date'], ['進捗_調査結果', '調査結果', ['商談設定', '商談設定前', '追客', 'NG']],
-  ['進捗_商談日', '商談日', 'date'], ['進捗_商談結果', '商談結果', ['検討', '契約', '再訪', '日程調整', 'NG', 'ツブレ']],
-  ['進捗_再訪日', '商談再訪日', 'date'], ['進捗_再訪結果', '商談再訪結果', ['検討', '契約', 'NG', 'ツブレ']]];
-function progForm(l) {
-  if (D.progSheet) return PROGF.map(([k, t, ty]) => `<label>${t}</label><div class="sm">${esc(ty === 'date' ? String(l[k] || '').slice(0, 10) : l[k] || '') || '<span class="sub">-</span>'}</div>`).join('') + '<div class="sub sm" style="grid-column:1/-1">↑ 初訪〜商談再訪は「Webアポ進捗管理」から取り込んでいます（変更は進捗表で）</div>';
-  return PROGF.map(([k, t, ty]) => `<label>${t}</label>${ty === 'date' ? `<input type="date" data-prog="${k}" value="${esc(String(l[k] || '').slice(0, 10))}">` : `<div><input data-prog="${k}" list="pl-${k}" value="${esc(l[k] || '')}" placeholder="選択または入力" style="width:160px"><datalist id="pl-${k}">${ty.map(v => `<option>${esc(v)}</option>`).join('')}</datalist></div>`}`).join('');
-}
-// 商談結果（再訪結果があればそちら）→ 商談ステータスの目安（アームズ様の取込と同じ対応）
-const dealFromRes = r => /契約/.test(r) ? '成約' : /ツブレ/.test(r) ? 'ツブレ' : /NG/i.test(r) ? '失注' : /検討|再訪/.test(r) ? '検討中' : '';
 function stBadge(s) { return `<span class="st st-${esc(s)}">${esc(s)}</span>`; }
 
 // 行の色：重複＝黒塗り、失注・NG・ツブレ・断り・対象外＝グレーアウト
@@ -1010,7 +997,6 @@ function drawLead(l, logs) {
 
     <div class="sec" ${inSec ? '' : 'style="opacity:.75"'}><h3>商談 ${inSec ? '' : '<span class="sub sm">（アポ獲得後に入力）</span>'}</h3>
       <div class="form">
-        ${progForm(l)}
         <label>商談ステータス</label><select id="dDeal"><option value="">-</option>${D.master.deal.map(v => `<option ${DR.deal === v ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select>
         <label>アポ日時</label><div><input type="datetime-local" id="dApo" value="${dt(l['アポ日時'])}"> <select id="dApoType"><option value="">-</option>${D.master.apoType.map(v => `<option ${l['アポ形式'] === v ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></div>
         <label>営業担当</label><div>${(D.master.reps || []).length ? `<select id="dRep"><option value="">-</option>${[...new Set((D.master.reps || []).concat(l['営業担当'] ? [l['営業担当']] : []))].map(v => `<option ${l['営業担当'] === v ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select>` : `<input id="dRep" value="${esc(l['営業担当'] || '')}" placeholder="訪問・商談の担当">`} <span class="sub sm">選択肢は 設定 &gt; 架電者・営業担当</span></div>
@@ -1057,8 +1043,7 @@ function drawLead(l, logs) {
     try { localStorage.setItem('caller' + NS, $('#cCaller').value); } catch (e) {}
     saveAnd('api_logCall', l, { result: DR.result, caller: $('#cCaller').value, at: $('#cAt').value.replace('T', ' '), next: $('#cNext').value.replace('T', ' '), apoAt: $('#cApo').value.replace('T', ' '), apoType: $('#cApoType').value, memo: $('#cMemo').value }, '架電結果を保存しました');
   };
-  $('#dSave').onclick = () => saveAnd('api_saveDeal', l, { deal: $('#dDeal').value, apoAt: $('#dApo').value.replace('T', ' '), apoType: $('#dApoType').value, date: $('#dDate').value, quote: $('#dQuote').value, product: $('#dProd').value, wonDate: $('#dWon').value, sales: $('#dSales').value, gross: $('#dGross').value, lostReason: $('#dLost').value, sales_rep: $('#dRep').value, memo: $('#dMemo').value, prog: D.progSheet ? undefined : Object.fromEntries([...document.querySelectorAll('[data-prog]')].map(i => [i.dataset.prog, i.value])) }, '商談を保存しました');
-  document.querySelectorAll('[data-prog="進捗_商談結果"],[data-prog="進捗_再訪結果"]').forEach(i => i.addEventListener('change', () => { const r = (document.querySelector('[data-prog="進捗_再訪結果"]').value || document.querySelector('[data-prog="進捗_商談結果"]').value); const d = dealFromRes(r); if (d && $('#dDeal')) { $('#dDeal').value = d; $('#dDeal').dispatchEvent(new Event('change')); } }));
+  $('#dSave').onclick = () => saveAnd('api_saveDeal', l, { deal: $('#dDeal').value, apoAt: $('#dApo').value.replace('T', ' '), apoType: $('#dApoType').value, date: $('#dDate').value, quote: $('#dQuote').value, product: $('#dProd').value, wonDate: $('#dWon').value, sales: $('#dSales').value, gross: $('#dGross').value, lostReason: $('#dLost').value, sales_rep: $('#dRep').value, memo: $('#dMemo').value }, '商談を保存しました');
   $('#uSave').onclick = () => saveAnd('api_updateLead', l, { owner: $('#uOwner').value }, '担当者を変更しました');
 }
 
