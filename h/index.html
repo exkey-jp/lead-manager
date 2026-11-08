@@ -1402,13 +1402,14 @@ function renderHub() {
   }
 }
 // ---------- リード一覧（各社の画面の「リード一覧」を会社ごとに切り替えて見る。読み取り専用） ----------
-// 案件一括管理は個人情報（氏名・電話番号・メモ）を取得しないので、その列は外す。行の詳細・メモ・トークの編集はできない
+// 各社のシステムが氏名・電話番号・メモを渡していないとき（旧版）は、その列を外す。行の詳細・メモ・トークの編集はできない
 const HUB_LIST_HIDE = ['氏名', '電話番号', '備考メモ'];
 const _renderListBase = renderList;
 renderList = function () {
   _renderListBase();
   const root = $('#p-list');
-  root.querySelectorAll('table').forEach(t => {
+  const hasPII = D.leads.some(l => '氏名' in l || '電話番号' in l);
+  if (!hasPII) root.querySelectorAll('table').forEach(t => {
     const rows = [...t.rows], hdr = rows.find(r => r.querySelector('th') && [...r.cells].some(c => HUB_LIST_HIDE.includes(c.textContent.trim())));
     if (!hdr) return;
     const idx = [...hdr.cells].map((c, i) => HUB_LIST_HIDE.includes(c.textContent.trim()) ? i : -1).filter(i => i >= 0).reverse();
@@ -1423,10 +1424,11 @@ renderList = function () {
     idx.forEach(i => { if (i === nameI) hdr.cells[i].textContent = '印'; else hdr.deleteCell(i); });
   });
   const te = $('#talkEdit'); if (te) te.remove();
-  const fq = $('#fq'); if (fq) fq.placeholder = '都道府県で検索';
+  const fq = $('#fq'); if (fq && !hasPII) fq.placeholder = '都道府県で検索';
+  root.querySelectorAll('.memoCell').forEach(m => { m.title = ''; if (!m.textContent.trim() || m.textContent.trim() === '＋ 入力') m.innerHTML = ''; });
   root.querySelectorAll('tr.click').forEach(tr => tr.classList.remove('click'));
   const lw = root.querySelector('.lwrap');
-  if (lw) lw.insertAdjacentHTML('beforebegin', `<div class="note">※ ${esc(UI.hubSel)} のリード一覧を読み取り専用で表示しています。氏名・電話番号・メモは案件一括管理では取得していないため出していません。詳細を見る・入力するときは各社のリード管理画面を開いてください。</div>`);
+  if (lw) lw.insertAdjacentHTML('beforebegin', `<div class="note">※ ${esc(UI.hubSel)} のリード一覧を読み取り専用で表示しています。${hasPII ? '' : 'この会社のシステムからは氏名・電話番号・メモが届いていないため出していません。'}詳細を見る・入力するときは各社のリード管理画面を開いてください。</div>`);
 };
 // 一覧の中では、メモ入力・詳細を開く操作を止める（訴求タブ・ステータス階層の切り替えは使える）
 document.addEventListener('click', e => {
