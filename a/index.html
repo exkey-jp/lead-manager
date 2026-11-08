@@ -268,7 +268,10 @@ async function load(sync) {
   if (D.sync && D.sync.added) toast(`新しいリードを${D.sync.added}件取り込みました`);
   render();
 }
+// テスト送信（氏名に「テスト」「test」、または 080-0000-0000・000… のようなダミー電話番号）は、集計にも一覧にも入れない
+const isTestLead = l => { const nm = String(l['氏名'] || ''), tel = String(l['電話番号'] || '').replace(/\D/g, ''); return /テスト|test/i.test(nm) || /^0\d{2}0{8}$/.test(tel) || /^0{10,}$/.test(tel); };
 function prep() {
+  D.leads = D.leads.filter(l => !isTestLead(l));
   const S = D.settings;
   const [oh, om] = String(S['架電可能時間_開始'] || '09:00').split(':').map(Number);
   const [ch, cm] = String(S['架電可能時間_終了'] || '20:00').split(':').map(Number);
