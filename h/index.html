@@ -269,7 +269,10 @@ async function load(sync) {
   if (D.sync && D.sync.added) toast(`新しいリードを${D.sync.added}件取り込みました`);
   render();
 }
+// テスト送信（氏名に「テスト」「test」、または 080-0000-0000・000… のようなダミー電話番号）は、集計にも一覧にも入れない
+const isTestLead = l => { const nm = String(l['氏名'] || ''), tel = String(l['電話番号'] || '').replace(/\D/g, ''); return /テスト|test/i.test(nm) || /^0\d{2}0{8}$/.test(tel) || /^0{10,}$/.test(tel); };
 function prep() {
+  D.leads = D.leads.filter(l => !isTestLead(l));
   const S = D.settings;
   const [oh, om] = String(S['架電可能時間_開始'] || '09:00').split(':').map(Number);
   const [ch, cm] = String(S['架電可能時間_終了'] || '20:00').split(':').map(Number);
@@ -1100,7 +1103,7 @@ const HUBM = [['n', 'リード'], ['valid', '有効リード'], ['apo', 'アポ'
 
 function hubInit() {
   document.title = 'ExKey 案件一括管理';
-  $('#nav').innerHTML = `<button data-p="hub" class="on">全社比較</button><button data-p="camp">訴求別</button><button data-p="ana">会社別の成果分析</button><button data-p="list">リード一覧</button>
+  $('#nav').innerHTML = `<button data-p="hub" class="on">全社比較</button><button data-p="camp">訴求別</button><button data-p="ana">会社別の成果分析</button>
     <select id="hubCo" title="会社" style="margin-left:6px"></select>`;
   const sec = document.createElement('section'); sec.id = 'p-hub'; $('main').prepend(sec);
   const sec2 = document.createElement('section'); sec2.id = 'p-hubcamp'; sec2.hidden = true; sec.after(sec2);
@@ -1169,7 +1172,7 @@ async function hubLoad() {
   $('#logout').onclick = e => { e.preventDefault(); logout(); };
   $('#updated').textContent = `更新 ${md(H.now)}`;
   $('#hubCo').innerHTML = oks.map(c => `<option>${esc(c.name)}</option>`).join('');
-  $('#hubCo').onchange = e => { hubUse(e.target.value); if (UI.page !== 'list') UI.page = 'ana'; UI.list.camp = ''; UI.list.st = ''; render(); };
+  $('#hubCo').onchange = e => { hubUse(e.target.value); UI.page = 'ana'; render(); };
   // 期間（全社のリード取得月・広告費の月）
   const mons = [...new Set(oks.flatMap(c => c.data.leads.map(l => String(l['受信日時']).slice(0, 7)).concat(c.data.adcost.map(a => a.ym))))].filter(Boolean).sort();
   const cur = today().slice(0, 7);
@@ -1185,15 +1188,13 @@ async function hubLoad() {
 
 function hubRender() {
   document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.p === UI.page));
-  ['home', 'set'].forEach(p => ($('#p-' + p).hidden = true));
-  $('#p-list').hidden = UI.page !== 'list';
+  ['home', 'list', 'set'].forEach(p => ($('#p-' + p).hidden = true));
   $('#p-ana').hidden = UI.page !== 'ana';
   $('#p-hub').hidden = UI.page !== 'hub';
   $('#p-hubcamp').hidden = UI.page !== 'camp';
   if (!H) return;
   $('#hubCo').value = UI.hubSel || '';
-  $('#hubCo').style.display = UI.page === 'ana' || UI.page === 'list' ? '' : 'none';
-  if (UI.page === 'list') { hubUse(UI.hubSel); renderList(); return; }
+  $('#hubCo').style.display = UI.page === 'ana' ? '' : 'none';
   if (UI.page === 'ana') { hubUse(UI.hubSel); renderAna(); hubMarkTables($('#p-ana')); } else if (UI.page === 'camp') renderHubCamp(); else renderHub();
 }
 
@@ -1401,40 +1402,6 @@ function renderHub() {
     }));
   }
 }
-// ---------- リード一覧（各社の画面の「リード一覧」を会社ごとに切り替えて見る。読み取り専用） ----------
-// 各社のシステムが氏名・電話番号・メモを渡していないとき（旧版）は、その列を外す。行の詳細・メモ・トークの編集はできない
-const HUB_LIST_HIDE = ['氏名', '電話番号', '備考メモ'];
-const _renderListBase = renderList;
-renderList = function () {
-  _renderListBase();
-  const root = $('#p-list');
-  const hasPII = D.leads.some(l => '氏名' in l || '電話番号' in l);
-  if (!hasPII) root.querySelectorAll('table').forEach(t => {
-    const rows = [...t.rows], hdr = rows.find(r => r.querySelector('th') && [...r.cells].some(c => HUB_LIST_HIDE.includes(c.textContent.trim())));
-    if (!hdr) return;
-    const idx = [...hdr.cells].map((c, i) => HUB_LIST_HIDE.includes(c.textContent.trim()) ? i : -1).filter(i => i >= 0).reverse();
-    // 氏名の列は「戸建て以外」「エリア外」の印だけ残して「印」列にする
-    const nameI = [...hdr.cells].findIndex(c => c.textContent.trim() === '氏名');
-    rows.filter(r => r !== hdr && r.cells.length === hdr.cells.length).forEach(r => {
-      idx.forEach(i => { if (i === nameI) { r.cells[i].innerHTML = [...r.cells[i].querySelectorAll('.nh')].map(x => x.outerHTML).join(''); } else r.deleteCell(i); });
-    });
-    // 2段見出し（進捗ビュー）のグループ見出しの幅を、外した列の分だけ縮める
-    const grp = rows.find(r => r !== hdr && r.querySelector('th[colspan]'));
-    if (grp) { let pos = 0; const span = [...grp.cells].map(c => { const st = pos; pos += c.colSpan; return [c, st, pos]; }); idx.filter(i => i !== nameI).forEach(i => { const g = span.find(([, st, en]) => i >= st && i < en); if (g) g[0].colSpan -= 1; }); }
-    idx.forEach(i => { if (i === nameI) hdr.cells[i].textContent = '印'; else hdr.deleteCell(i); });
-  });
-  const te = $('#talkEdit'); if (te) te.remove();
-  const fq = $('#fq'); if (fq && !hasPII) fq.placeholder = '都道府県で検索';
-  root.querySelectorAll('.memoCell').forEach(m => { m.title = ''; if (!m.textContent.trim() || m.textContent.trim() === '＋ 入力') m.innerHTML = ''; });
-  root.querySelectorAll('tr.click').forEach(tr => tr.classList.remove('click'));
-  const lw = root.querySelector('.lwrap');
-  if (lw) lw.insertAdjacentHTML('beforebegin', `<div class="note">※ ${esc(UI.hubSel)} のリード一覧を読み取り専用で表示しています。${hasPII ? '' : 'この会社のシステムからは氏名・電話番号・メモが届いていないため出していません。'}詳細を見る・入力するときは各社のリード管理画面を開いてください。</div>`);
-};
-// 一覧の中では、メモ入力・詳細を開く操作を止める（訴求タブ・ステータス階層の切り替えは使える）
-document.addEventListener('click', e => {
-  if (UI.page !== 'list') return;
-  if (e.target.closest('#p-list .memoCell, #p-list tbody tr')) { e.stopPropagation(); e.preventDefault(); }
-}, true);
 hubInit();
 load(false);
 </script>
