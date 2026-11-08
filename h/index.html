@@ -1128,7 +1128,7 @@ function hubInit() {
     $('#hubFull').onclick = () => { const on = document.body.classList.toggle('hub-full'); $('#hubFull').textContent = on ? '主要項目' : '全項目'; };
   }
   UI.page = 'hub';
-  UI.hub = { from: '', to: '', metric: 'apo', split: true, co: '', cmetric: 'cpa' };
+  UI.hub = { from: '', to: '', metric: 'apo', split: true, co: '', cmetric: 'cpa', basis: 'event' };
 }
 
 function hubUse(name) {
@@ -1181,9 +1181,19 @@ function hubRender() {
 }
 
 // 1社・期間の成果（各社の画面の「リード取得月」の集計と同じ）
-function hubMetrics(c, months) {
+// basis='event'（既定）：アポ＝アポを取った月、商談＝商談した月、成約・売上＝成約した月で数える（各社の成果分析「発生月で見る」と同じ）。リード数・広告費はリード取得月
+// basis='recv'：その期間に取得したリードが、その後アポ・商談・成約になった数
+function hubMetrics(c, months, basis) {
   hubUse(c.name);
   const m = metrics(D.leads.filter(l => months.includes(l._ym)), costOf(months));
+  if ((basis || UI.hub.basis) !== 'recv') {
+    const evMon = (l, ...ks) => { for (const k of ks) { const v = String(l[k] || ''); if (v) return v.slice(0, 7); } return ''; };
+    const won = D.leads.filter(l => l._won && months.includes(evMon(l, '成約日', '商談実施日', 'アポ日時')));
+    m.apo = months.reduce((s, ym) => s + apoByEvent(ym, D.leads, false), 0);
+    m.deal = D.leads.filter(l => l._dealDone && months.includes(l._dealMon)).length;
+    m.won = won.length; m.sales = won.reduce((s, l) => s + l._sales, 0); m.gross = won.reduce((s, l) => s + l._gross, 0);
+    m.grossEst = won.some(l => l._grossEst); m.profit = m.gross - m.cost;
+  }
   hubUse(UI.hubSel);
   return m;
 }
@@ -1332,7 +1342,8 @@ function renderHub() {
     <button class="btn sm" data-hq="this">今月</button><button class="btn sm" data-hq="last">先月</button><button class="btn sm" data-hq="all">全期間</button>
   </div>
   ${bad.length ? `<div class="hint">取得できなかった会社：${bad.map(c => `<b>${esc(c.name)}</b>（${esc(c.error)}）`).join('、')}</div>` : ''}
-  <div class="note">※ 各社のシステムの「成果分析」と同じ数え方です（その期間に取得したリードが、その後アポ・商談・成約にどれだけつながったか）。有効リード・商談の定義は会社ごとの設定のままです。会社名を押すと、その会社の成果分析を開きます。個人を特定できる情報（氏名・電話番号・メモ）は取得していません。</div>
+  <div class="filters" style="margin:4px 0"><span class="seg"><button data-hbasis="event" class="${F.basis !== 'recv' ? 'on' : ''}">発生月で見る</button><button data-hbasis="recv" class="${F.basis === 'recv' ? 'on' : ''}">リード取得月で見る</button></span></div>
+  <div class="note">※ ${F.basis !== 'recv' ? '<b>発生月</b>で数えています：アポ＝アポを取った月、商談＝商談した月、成約・売上＝成約した月（リード数・広告費はリード取得月）。各社の成果分析の「月別の成果（発生月で見る）」と同じです。率は目安です。' : '<b>リード取得月</b>で数えています：その期間に取得したリードが、その後アポ・商談・成約にどれだけつながったか（各社の成果分析の上部と同じ）。'}有効リード・商談の定義は会社ごとの設定のままです。会社名を押すと、その会社の成果分析を開きます。個人を特定できる情報（氏名・電話番号・メモ）は取得していません。</div>
   <div class="grid kpis" style="margin:12px 0">
     <div class="card kpi"><div class="l">広告費（全社）</div><div class="v">${yenS(T.cost)}</div></div>
     <div class="card kpi"><div class="l">リード / 有効</div><div class="v">${T.n} / ${T.valid}</div><div class="s">CPL ${yen(div(T.cost, T.n))}</div></div>
@@ -1345,7 +1356,7 @@ function renderHub() {
   <div class="tblwrap"><table class="mt">${head}<tbody>${rows.map(x => row(`<a href="#" data-co="${esc(x.c.name)}"><b>${esc(x.c.name)}</b></a>`, x.m)).join('')}${rows.length > 1 ? row('合計', T, 'class="total"') : ''}</tbody></table></div>
   <h2 style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">月別の推移
     <select id="hmetric">${HUBM.map(([k, t]) => `<option value="${k}" ${mk === k ? 'selected' : ''}>${t}</option>`).join('')}</select>
-    <span class="sub sm">リード取得月ごと</span></h2>
+    <span class="sub sm">${F.basis !== 'recv' ? '発生月ごと（リード・広告費は取得月）' : 'リード取得月ごと'}</span></h2>
   <div class="tblwrap"><table><thead><tr><th>会社</th>${trendMons.map(m => `<th class="num">${m}</th>`).join('')}</tr></thead><tbody>
     ${grid.map(g => `<tr><td><a href="#" data-co="${esc(g.c.name)}">${esc(g.c.name)}</a></td>${g.by.map(m => `<td class="num">${hubFmt(hubVal(m, mk), mk)}</td>`).join('')}</tr>`).join('')}
     ${grid.length > 1 ? `<tr class="total"><td>合計</td>${tot.map(m => `<td class="num">${hubFmt(hubVal(m, mk), mk)}</td>`).join('')}</tr>` : ''}
@@ -1355,12 +1366,13 @@ function renderHub() {
 
   const sv = (id, k) => ($(id).onchange = e => { F[k] = e.target.value; if (F.from > F.to) F.to = F.from; renderHub(); });
   sv('#hfrom', 'from'); sv('#hto', 'to'); sv('#hmetric', 'metric');
+  document.querySelectorAll('#p-hub [data-hbasis]').forEach(b => (b.onclick = () => { F.basis = b.dataset.hbasis; renderHub(); }));
   document.querySelectorAll('[data-hq]').forEach(b => (b.onclick = () => {
     const c = today().slice(0, 7); const [y, m] = c.split('-').map(Number); const last = m === 1 ? `${y - 1}-12` : `${y}-${p2(m - 1)}`;
     if (b.dataset.hq === 'this') F.from = F.to = c; if (b.dataset.hq === 'last') F.from = F.to = last; if (b.dataset.hq === 'all') { F.from = UI.hub.mons[0]; F.to = c; }
     renderHub();
   }));
-  document.querySelectorAll('#p-hub [data-co]').forEach(a => (a.onclick = e => { e.preventDefault(); hubUse(a.dataset.co); UI.ana.from = F.from; UI.ana.to = F.to; UI.ana.camp = ''; UI.ana.media = ''; UI.page = 'ana'; render(); }));
+  document.querySelectorAll('#p-hub [data-co]').forEach(a => (a.onclick = e => { e.preventDefault(); hubUse(a.dataset.co); UI.ana.from = F.from; UI.ana.to = F.to; UI.ana.camp = ''; UI.ana.media = ''; UI.ana.basis = F.basis === 'recv' ? 'recv' : 'event'; UI.page = 'ana'; render(); }));
   charts.forEach(c => c.destroy()); charts = [];
   TAh.draw();
   if (window.Chart) {
