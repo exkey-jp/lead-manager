@@ -269,10 +269,7 @@ async function load(sync) {
   if (D.sync && D.sync.added) toast(`新しいリードを${D.sync.added}件取り込みました`);
   render();
 }
-// テスト送信（氏名に「テスト」「test」、または 080-0000-0000・000… のようなダミー電話番号）は、集計にも一覧にも入れない
-const isTestLead = l => { const nm = String(l['氏名'] || ''), tel = String(l['電話番号'] || '').replace(/\D/g, ''); return /テスト|test/i.test(nm) || /^0\d{2}0{8}$/.test(tel) || /^0{10,}$/.test(tel); };
 function prep() {
-  D.leads = D.leads.filter(l => !isTestLead(l));
   const S = D.settings;
   const [oh, om] = String(S['架電可能時間_開始'] || '09:00').split(':').map(Number);
   const [ch, cm] = String(S['架電可能時間_終了'] || '20:00').split(':').map(Number);
@@ -449,6 +446,9 @@ function renderHome(A) {
   const sel = UI.alert === 'all' ? null : A.find(a => a.k === UI.alert);
   let list = sel ? sel.list : A.filter(a => !['new', 'long', 'apo'].includes(a.k)).flatMap(a => a.list.map(l => Object.assign(l, { _why: a.t, _c: a.c })));
   const seen = new Set(); list = list.filter(l => !seen.has(l['リードID']) && seen.add(l['リードID']));
+  // D.alertSkip（例：{対象判定:'対象外'}）に当てはまるリードは「要対応のリード」一覧に出さない（集計・アラート件数には含める）
+  const SK = D.alertSkip || {};
+  if (!sel) list = list.filter(l => !Object.keys(SK).some(k => String((l._ans || {})[k] || '').trim() === SK[k]));
   $('#p-home').innerHTML = `
   <div class="grid kpis" style="margin-bottom:16px">
     <div class="card kpi"><div class="l">今日の新着</div><div class="v">${todayNew}件</div></div>
@@ -690,16 +690,6 @@ function timeAnalysis(L, months, id) {
   return { html, draw };
 }
 
-// 発生月で数え直す：m（リード取得月の集計）のアポ・商談・成約・売上を、pool（絞り込み済みの全期間リード）のうち months に起きたもので置き換える。リード数・広告費はそのまま
-function evApply(m, pool, months, filtered) {
-  const evM = (l, ...ks) => { for (const k of ks) { const v = String(l[k] || ''); if (v) return v.slice(0, 7); } return ''; };
-  const won = pool.filter(l => l._won && months.includes(evM(l, '成約日', '商談実施日', 'アポ日時')));
-  m.apo = months.reduce((s, ym) => s + apoByEvent(ym, pool, filtered), 0);
-  m.deal = pool.filter(l => l._dealDone && months.includes(l._dealMon)).length;
-  m.won = won.length; m.sales = won.reduce((s, l) => s + l._sales, 0); m.gross = won.reduce((s, l) => s + l._gross, 0);
-  m.grossEst = won.some(l => l._grossEst); m.profit = m.gross - m.cost;
-  return m;
-}
 function renderAna() {
   const F = UI.ana;
   const allMons = [...new Set(D.leads.map(l => l._ym).concat(D.adcost.map(c => c.ym)))].sort();
@@ -709,10 +699,6 @@ function renderAna() {
   const inF = l => months.includes(l._ym) && (!F.camp || l['訴求'] === F.camp) && (!F.media || hasMedia(l._media, F.media));
   const L = D.leads.filter(inF);
   const M = metrics(L, costOf(months, F.camp, F.media));
-  const EV = F.basis !== 'recv';
-  const inCMa = l => (!F.camp || l['訴求'] === F.camp) && (!F.media || hasMedia(l._media, F.media));
-  // サマリ（KPI）：発生月で見るときはアポ・商談・成約・売上をその期間に起きた件数に（ファネルはリード起点のまま）
-  const MS = EV ? evApply(metrics(L, costOf(months, F.camp, F.media)), D.leads.filter(inCMa), months, !!(F.camp || F.media)) : M;
   const row = (label, m, extra = '') => `<tr ${extra}><td>${label}</td>
     <td class="num">${yen(m.cost)}</td><td class="num">${m.n}</td><td class="num">${m.valid}</td><td class="num">${pct(m.valid, m.n)}</td><td class="num cpa">${yen(div(m.cost, m.n))}</td><td class="num">${yen(div(m.cost, m.valid))}</td>
     <td class="num">${pct(m.called, m.uniq)}</td><td class="num">${pct(m.conn, m.called)}</td>
@@ -723,11 +709,11 @@ function renderAna() {
   const thead = first => `<thead><tr><th>${first}</th><th class="num">広告費</th><th class="num">リード</th><th class="num">有効</th><th class="num">有効率</th><th class="num cpa">CPL</th><th class="num">有効CPL</th><th class="num">架電率</th><th class="num">接続率</th><th class="num">アポ</th><th class="num">アポ率</th><th class="num cpa">アポ単価</th><th class="num">商談</th><th class="num">商談実施率</th><th class="num">成約</th><th class="num">成約率</th><th class="num cpa">成約単価</th><th class="num">売上</th><th class="num">粗利</th><th class="num">粗利−広告費</th><th class="num">ROAS</th></tr></thead>`;
   const byCamp = camps.filter(c => !F.camp || c['訴求'] === F.camp).filter(c => !F.media || hasMedia(c['媒体'], F.media))
     .filter(c => !F.live || c['出稿'] === '出稿中') // 「出稿中だけ」：QuanteeADで昨日・今日に費用が出ている訴求
-    .map(c => { const m = metrics(L.filter(l => l['訴求'] === c['訴求']), costOf(months, c['訴求'])); if (EV) evApply(m, D.leads.filter(l => l['訴求'] === c['訴求'] && inCMa(l)), months, true); return { c, m }; }).filter(x => x.m.n || x.m.cost || x.m.apo || x.m.deal || x.m.won);
+    .map(c => ({ c, m: metrics(L.filter(l => l['訴求'] === c['訴求']), costOf(months, c['訴求'])) })).filter(x => x.m.n || x.m.cost);
   const hasLive = camps.some(c => c['出稿']);
   // 出稿中だけに絞ったときの合計は、表に出ている訴求だけで計算する
   const liveSet = {}; byCamp.forEach(x => (liveSet[x.c['訴求']] = true));
-  const Mtab = F.live ? (() => { const t = metrics(L.filter(l => liveSet[l['訴求']]), byCamp.reduce((a, x) => a + x.m.cost, 0)); return EV ? evApply(t, D.leads.filter(l => liveSet[l['訴求']] && inCMa(l)), months, true) : t; })() : MS;
+  const Mtab = F.live ? metrics(L.filter(l => liveSet[l['訴求']]), byCamp.reduce((a, x) => a + x.m.cost, 0)) : M;
   const inCM = l => (!F.camp || l['訴求'] === F.camp) && (!F.media || hasMedia(l._media, F.media));
   // 月別：リード取得月で見る（そのリードがあとでアポ等になった数）／発生月で見る（アポ・商談・成約が起きた月で数える）
   const evMon = (l, ...ks) => { for (const k of ks) { const v = String(l[k] || ''); if (v) return v.slice(0, 7); } return ''; };
@@ -783,16 +769,15 @@ function renderAna() {
     <select id="acamp"><option value="">すべての訴求</option>${camps.map(c => `<option value="${esc(c['訴求'])}" ${F.camp === c['訴求'] ? 'selected' : ''}>${esc(c['表示名'] || c['訴求'])}</option>`).join('')}</select>
     <select id="amedia"><option value="">すべての媒体</option>${medias.map(m => `<option ${F.media === m ? 'selected' : ''}>${esc(m)}</option>`).join('')}</select>
   </div>
-  <div class="filters" style="margin:4px 0"><span class="seg"><button data-basis="event" class="${EV ? 'on' : ''}">発生月で見る</button><button data-basis="recv" class="${EV ? '' : 'on'}">リード取得月で見る</button></span> <span class="sub sm">サマリ・月別・訴求別の数え方を切り替えます</span></div>
-  <div class="note">※ ${EV ? 'サマリ・訴求別・月別は<b>発生月</b>で数えています：アポ＝アポを取った月、商談＝商談した月、成約・売上＝成約した月（リード数・広告費はリード取得月）。率は目安です。ファネルと下の分析は、その期間に取得したリードで数えています。' + (D.apoFixed ? ` ${md(D.apoFixed.until)}までのアポ数は、それまでの管理の数字で固定しています（訴求別の行・訴求や媒体で絞ったときはシステムの数え方のため、合計と合わないことがあります）。` : '') : 'その期間に<b>取得したリード</b>が、その後アポ・商談・成約にどれだけつながったかで集計しています（リード起点）。'}広告費は「設定」で月×訴求ごとに入力した金額です。${MS.grossEst ? `粗利の * は未入力分を売上×${D.settings['粗利率の初期値(%)']}%で推定。` : ''}</div>
+  <div class="note">※ その期間に<b>取得したリード</b>が、その後アポ・商談・成約にどれだけつながったかで集計しています（リード起点）。広告費は「設定」で月×訴求ごとに入力した金額です。${M.grossEst ? `粗利の * は未入力分を売上×${D.settings['粗利率の初期値(%)']}%で推定。` : ''}</div>
   <div class="grid kpis" style="margin:12px 0">
-    <div class="card kpi"><div class="l">広告費</div><div class="v">${yenS(MS.cost)}</div>${D.adcostAt ? `<div class="s" title="QuanteeADから1日3回（7:30・12:30・17:30）取り込みます。それ以降に使った分はまだ入っていません">QuanteeAD ${esc(String(D.adcostAt).slice(5, 16).replace('-', '/'))} 時点</div>` : ''}</div>
-    <div class="card kpi"><div class="l">リード / 有効</div><div class="v">${MS.n} / ${MS.valid}</div><div class="s">CPL ${yen(div(MS.cost, MS.n))}・有効CPL ${yen(div(MS.cost, MS.valid))}</div></div>
-    <div class="card kpi"><div class="l">アポ</div><div class="v">${MS.apo}件</div><div class="s">アポ率 ${pct(MS.apo, MS.valid)}・単価 ${yen(div(MS.cost, MS.apo))}</div></div>
-    <div class="card kpi"><div class="l">商談 / 成約</div><div class="v">${MS.deal} / ${MS.won}</div><div class="s">成約率 ${pct(MS.won, MS.deal)}・成約単価 ${yen(div(MS.cost, MS.won))}</div></div>
-    <div class="card kpi hl"><div class="l">新規売上</div><div class="v">${yenS(MS.sales)}</div><div class="s">ROAS ${MS.cost ? (MS.sales / MS.cost * 100).toFixed(0) + '%' : '-'}</div></div>
-    <div class="card kpi hl"><div class="l">新規粗利</div><div class="v">${yenS(MS.gross)}</div><div class="s">${MS.grossEst ? '推定を含む' : '入力値'}</div></div>
-    <div class="card kpi hl"><div class="l">粗利 − 広告費</div><div class="v" style="color:${MS.profit < 0 ? '#ffb4ab' : '#b7f5c4'}">${MS.cost ? yenS(MS.profit) : '-'}</div><div class="s">粗利ROI ${MS.cost ? (MS.profit / MS.cost * 100).toFixed(0) + '%' : '-'}</div></div>
+    <div class="card kpi"><div class="l">広告費</div><div class="v">${yenS(M.cost)}</div>${D.adcostAt ? `<div class="s" title="QuanteeADから1日3回（7:30・12:30・17:30）取り込みます。それ以降に使った分はまだ入っていません">QuanteeAD ${esc(String(D.adcostAt).slice(5, 16).replace('-', '/'))} 時点</div>` : ''}</div>
+    <div class="card kpi"><div class="l">リード / 有効</div><div class="v">${M.n} / ${M.valid}</div><div class="s">CPL ${yen(div(M.cost, M.n))}・有効CPL ${yen(div(M.cost, M.valid))}</div></div>
+    <div class="card kpi"><div class="l">アポ</div><div class="v">${M.apo}件</div><div class="s">アポ率 ${pct(M.apo, M.valid)}・単価 ${yen(div(M.cost, M.apo))}</div></div>
+    <div class="card kpi"><div class="l">商談 / 成約</div><div class="v">${M.deal} / ${M.won}</div><div class="s">成約率 ${pct(M.won, M.deal)}・成約単価 ${yen(div(M.cost, M.won))}</div></div>
+    <div class="card kpi hl"><div class="l">新規売上</div><div class="v">${yenS(M.sales)}</div><div class="s">ROAS ${M.cost ? (M.sales / M.cost * 100).toFixed(0) + '%' : '-'}</div></div>
+    <div class="card kpi hl"><div class="l">新規粗利</div><div class="v">${yenS(M.gross)}</div><div class="s">${M.grossEst ? '推定を含む' : '入力値'}</div></div>
+    <div class="card kpi hl"><div class="l">粗利 − 広告費</div><div class="v" style="color:${M.profit < 0 ? '#ffb4ab' : '#b7f5c4'}">${M.cost ? yenS(M.profit) : '-'}</div><div class="s">粗利ROI ${M.cost ? (M.profit / M.cost * 100).toFixed(0) + '%' : '-'}</div></div>
     <div class="card kpi"><div class="l">初回架電までの時間</div><div class="v">${M.respMed != null ? ago(M.respMed) : '-'}</div><div class="s">中央値（受付時間内換算）</div></div>
   </div>
   <h2>月別の成果</h2>
@@ -1103,7 +1088,7 @@ const HUBM = [['n', 'リード'], ['valid', '有効リード'], ['apo', 'アポ'
 
 function hubInit() {
   document.title = 'ExKey 案件一括管理';
-  $('#nav').innerHTML = `<button data-p="hub" class="on">全社比較</button><button data-p="camp">訴求別</button><button data-p="ana">会社別の成果分析</button>
+  $('#nav').innerHTML = `<button data-p="hub" class="on">全社比較</button><button data-p="camp">訴求別</button><button data-p="ana">会社別の成果分析</button><button data-p="list">リード一覧</button>
     <select id="hubCo" title="会社" style="margin-left:6px"></select>`;
   const sec = document.createElement('section'); sec.id = 'p-hub'; $('main').prepend(sec);
   const sec2 = document.createElement('section'); sec2.id = 'p-hubcamp'; sec2.hidden = true; sec.after(sec2);
@@ -1146,7 +1131,7 @@ function hubInit() {
     $('#hubFull').onclick = () => { const on = document.body.classList.toggle('hub-full'); $('#hubFull').textContent = on ? '主要項目' : '全項目'; };
   }
   UI.page = 'hub';
-  UI.hub = { from: '', to: '', metric: 'apo', split: true, co: '', cmetric: 'cpa', basis: 'event' };
+  UI.hub = { from: '', to: '', metric: 'apo', split: true, co: '', cmetric: 'cpa' };
 }
 
 function hubUse(name) {
@@ -1172,7 +1157,7 @@ async function hubLoad() {
   $('#logout').onclick = e => { e.preventDefault(); logout(); };
   $('#updated').textContent = `更新 ${md(H.now)}`;
   $('#hubCo').innerHTML = oks.map(c => `<option>${esc(c.name)}</option>`).join('');
-  $('#hubCo').onchange = e => { hubUse(e.target.value); UI.page = 'ana'; render(); };
+  $('#hubCo').onchange = e => { hubUse(e.target.value); Object.assign(UI.list, { camp: '', st: '', owner: '', q: '' }); if (UI.page !== 'list') UI.page = 'ana'; render(); };
   // 期間（全社のリード取得月・広告費の月）
   const mons = [...new Set(oks.flatMap(c => c.data.leads.map(l => String(l['受信日時']).slice(0, 7)).concat(c.data.adcost.map(a => a.ym))))].filter(Boolean).sort();
   const cur = today().slice(0, 7);
@@ -1188,30 +1173,21 @@ async function hubLoad() {
 
 function hubRender() {
   document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.p === UI.page));
-  ['home', 'list', 'set'].forEach(p => ($('#p-' + p).hidden = true));
+  ['home', 'set'].forEach(p => ($('#p-' + p).hidden = true));
+  $('#p-list').hidden = UI.page !== 'list';
   $('#p-ana').hidden = UI.page !== 'ana';
   $('#p-hub').hidden = UI.page !== 'hub';
   $('#p-hubcamp').hidden = UI.page !== 'camp';
   if (!H) return;
   $('#hubCo').value = UI.hubSel || '';
-  $('#hubCo').style.display = UI.page === 'ana' ? '' : 'none';
-  if (UI.page === 'ana') { hubUse(UI.hubSel); renderAna(); hubMarkTables($('#p-ana')); } else if (UI.page === 'camp') renderHubCamp(); else renderHub();
+  $('#hubCo').style.display = UI.page === 'ana' || UI.page === 'list' ? '' : 'none';
+  if (UI.page === 'list') { hubUse(UI.hubSel); renderList(); } else if (UI.page === 'ana') { hubUse(UI.hubSel); renderAna(); hubMarkTables($('#p-ana')); } else if (UI.page === 'camp') renderHubCamp(); else renderHub();
 }
 
 // 1社・期間の成果（各社の画面の「リード取得月」の集計と同じ）
-// basis='event'（既定）：アポ＝アポを取った月、商談＝商談した月、成約・売上＝成約した月で数える（各社の成果分析「発生月で見る」と同じ）。リード数・広告費はリード取得月
-// basis='recv'：その期間に取得したリードが、その後アポ・商談・成約になった数
-function hubMetrics(c, months, basis) {
+function hubMetrics(c, months) {
   hubUse(c.name);
   const m = metrics(D.leads.filter(l => months.includes(l._ym)), costOf(months));
-  if ((basis || UI.hub.basis) !== 'recv') {
-    const evMon = (l, ...ks) => { for (const k of ks) { const v = String(l[k] || ''); if (v) return v.slice(0, 7); } return ''; };
-    const won = D.leads.filter(l => l._won && months.includes(evMon(l, '成約日', '商談実施日', 'アポ日時')));
-    m.apo = months.reduce((s, ym) => s + apoByEvent(ym, D.leads, false), 0);
-    m.deal = D.leads.filter(l => l._dealDone && months.includes(l._dealMon)).length;
-    m.won = won.length; m.sales = won.reduce((s, l) => s + l._sales, 0); m.gross = won.reduce((s, l) => s + l._gross, 0);
-    m.grossEst = won.some(l => l._grossEst); m.profit = m.gross - m.cost;
-  }
   hubUse(UI.hubSel);
   return m;
 }
@@ -1360,8 +1336,7 @@ function renderHub() {
     <button class="btn sm" data-hq="this">今月</button><button class="btn sm" data-hq="last">先月</button><button class="btn sm" data-hq="all">全期間</button>
   </div>
   ${bad.length ? `<div class="hint">取得できなかった会社：${bad.map(c => `<b>${esc(c.name)}</b>（${esc(c.error)}）`).join('、')}</div>` : ''}
-  <div class="filters" style="margin:4px 0"><span class="seg"><button data-hbasis="event" class="${F.basis !== 'recv' ? 'on' : ''}">発生月で見る</button><button data-hbasis="recv" class="${F.basis === 'recv' ? 'on' : ''}">リード取得月で見る</button></span></div>
-  <div class="note">※ ${F.basis !== 'recv' ? '<b>発生月</b>で数えています：アポ＝アポを取った月、商談＝商談した月、成約・売上＝成約した月（リード数・広告費はリード取得月）。各社の成果分析の「月別の成果（発生月で見る）」と同じです。率は目安です。' : '<b>リード取得月</b>で数えています：その期間に取得したリードが、その後アポ・商談・成約にどれだけつながったか（各社の成果分析の上部と同じ）。'}有効リード・商談の定義は会社ごとの設定のままです。会社名を押すと、その会社の成果分析を開きます。個人を特定できる情報（氏名・電話番号・メモ）は取得していません。</div>
+  <div class="note">※ 各社のシステムの「成果分析」と同じ数え方です（その期間に取得したリードが、その後アポ・商談・成約にどれだけつながったか）。有効リード・商談の定義は会社ごとの設定のままです。会社名を押すと、その会社の成果分析を開きます。個人を特定できる情報（氏名・電話番号・メモ）は取得していません。</div>
   <div class="grid kpis" style="margin:12px 0">
     <div class="card kpi"><div class="l">広告費（全社）</div><div class="v">${yenS(T.cost)}</div></div>
     <div class="card kpi"><div class="l">リード / 有効</div><div class="v">${T.n} / ${T.valid}</div><div class="s">CPL ${yen(div(T.cost, T.n))}</div></div>
@@ -1374,7 +1349,7 @@ function renderHub() {
   <div class="tblwrap"><table class="mt">${head}<tbody>${rows.map(x => row(`<a href="#" data-co="${esc(x.c.name)}"><b>${esc(x.c.name)}</b></a>`, x.m)).join('')}${rows.length > 1 ? row('合計', T, 'class="total"') : ''}</tbody></table></div>
   <h2 style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">月別の推移
     <select id="hmetric">${HUBM.map(([k, t]) => `<option value="${k}" ${mk === k ? 'selected' : ''}>${t}</option>`).join('')}</select>
-    <span class="sub sm">${F.basis !== 'recv' ? '発生月ごと（リード・広告費は取得月）' : 'リード取得月ごと'}</span></h2>
+    <span class="sub sm">リード取得月ごと</span></h2>
   <div class="tblwrap"><table><thead><tr><th>会社</th>${trendMons.map(m => `<th class="num">${m}</th>`).join('')}</tr></thead><tbody>
     ${grid.map(g => `<tr><td><a href="#" data-co="${esc(g.c.name)}">${esc(g.c.name)}</a></td>${g.by.map(m => `<td class="num">${hubFmt(hubVal(m, mk), mk)}</td>`).join('')}</tr>`).join('')}
     ${grid.length > 1 ? `<tr class="total"><td>合計</td>${tot.map(m => `<td class="num">${hubFmt(hubVal(m, mk), mk)}</td>`).join('')}</tr>` : ''}
@@ -1384,13 +1359,12 @@ function renderHub() {
 
   const sv = (id, k) => ($(id).onchange = e => { F[k] = e.target.value; if (F.from > F.to) F.to = F.from; renderHub(); });
   sv('#hfrom', 'from'); sv('#hto', 'to'); sv('#hmetric', 'metric');
-  document.querySelectorAll('#p-hub [data-hbasis]').forEach(b => (b.onclick = () => { F.basis = b.dataset.hbasis; renderHub(); }));
   document.querySelectorAll('[data-hq]').forEach(b => (b.onclick = () => {
     const c = today().slice(0, 7); const [y, m] = c.split('-').map(Number); const last = m === 1 ? `${y - 1}-12` : `${y}-${p2(m - 1)}`;
     if (b.dataset.hq === 'this') F.from = F.to = c; if (b.dataset.hq === 'last') F.from = F.to = last; if (b.dataset.hq === 'all') { F.from = UI.hub.mons[0]; F.to = c; }
     renderHub();
   }));
-  document.querySelectorAll('#p-hub [data-co]').forEach(a => (a.onclick = e => { e.preventDefault(); hubUse(a.dataset.co); UI.ana.from = F.from; UI.ana.to = F.to; UI.ana.camp = ''; UI.ana.media = ''; UI.ana.basis = F.basis === 'recv' ? 'recv' : 'event'; UI.page = 'ana'; render(); }));
+  document.querySelectorAll('#p-hub [data-co]').forEach(a => (a.onclick = e => { e.preventDefault(); hubUse(a.dataset.co); UI.ana.from = F.from; UI.ana.to = F.to; UI.ana.camp = ''; UI.ana.media = ''; UI.page = 'ana'; render(); }));
   charts.forEach(c => c.destroy()); charts = [];
   TAh.draw();
   if (window.Chart) {
@@ -1402,6 +1376,46 @@ function renderHub() {
     }));
   }
 }
+// ---------- リード一覧（各社の画面の一覧を読み取り専用で。氏名・電話番号・メモは受け取っていないので列ごと出さない） ----------
+const HUB_NOCOL = ['name', 'tel', 'memo'];
+const _leadRows = leadRows;
+leadRows = (list, cols) => _leadRows(list, cols.filter(c => !HUB_NOCOL.includes(c)));
+const _renderList = renderList;
+renderList = () => {
+  UI.list.view = 'list'; // 進捗ビューは氏名・電話番号の列が中心なので使わない
+  _renderList();
+  const root = $('#p-list');
+  const q = root.querySelector('#fq'); if (q) q.placeholder = '都道府県で検索';
+  root.querySelectorAll('.seg, #talkEdit').forEach(x => x.remove());
+  if (!root.querySelector('.hubnote')) root.insertAdjacentHTML('afterbegin', `<div class="note hubnote" style="margin:0 0 8px">${esc(UI.hubSel || '')} のリード（閲覧のみ・氏名と電話番号は出しません）。架電結果の入力は各社の画面で行います。</div>`);
+};
+function hubLead(id) {
+  const l = D.leads.find(x => x['リードID'] === id); if (!l) return;
+  UI.sel = id;
+  const kv = (k, v) => v ? `<div>${esc(k)}</div><div>${v}</div>` : '';
+  const P = [['アポ取得日', md(String(l['アポ獲得日'] || ''))], ['アポ日時', md(String(l['アポ日時'] || ''))], ['アポ形式', esc(l['アポ形式'] || '')], ['架電者', esc(l['担当者'] || '')], ['営業担当', esc(l['営業担当'] || '')],
+    ['初訪日', md(String(l['進捗_初訪日'] || '').slice(0, 10))], ['初訪結果', esc(l['進捗_訪問結果'] || '')], ['調査日', md(String(l['進捗_調査日'] || '').slice(0, 10))], ['調査結果', esc(l['進捗_調査結果'] || '')],
+    ['商談日', md(String(l['進捗_商談日'] || l['商談実施日'] || '').slice(0, 10))], ['商談結果', esc(l['進捗_商談結果'] || '')], ['商談再訪日', md(String(l['進捗_再訪日'] || '').slice(0, 10))], ['商談再訪結果', esc(l['進捗_再訪結果'] || '')],
+    ['商談ステータス', esc(l['商談ステータス'] || '')], ['商材', esc(l['商材'] || '')], ['見積金額', l['見積金額'] ? yen(num(l['見積金額'])) : ''], ['失注理由', esc(l['失注理由'] || '')], ['売上', l._won ? `<b>${yen(l._sales)}</b>` : '']];
+  $('#drawer').innerHTML = `<div class="dh"><div style="display:flex;justify-content:space-between;align-items:start;gap:10px">
+      <div><div class="nm">${esc(campName(l['訴求']))} ${stBadge(l['ステータス'])}${l._notHouse ? '<span class="nh">持ち家戸建て以外の回答（有効リード外）</span>' : ''}${l._areaOut ? '<span class="nh">対応エリア外（有効リード外）</span>' : ''}</div>
+      <span class="sub">${esc(UI.hubSel || '')}・${esc(l['都道府県'] || '')}・リード取得 ${md(l['受信日時'])}・架電 ${num(l['架電回数'])}回</span></div>
+      <button class="btn" id="dclose">閉じる</button></div></div>
+    <div class="db">
+      <div class="sec"><h3>アンケート回答</h3><div class="kv">${Object.entries(l._ans).map(([q, a]) => `<div>${esc(q)}</div><div><b>${esc(a)}</b></div>`).join('') || '<div class="sub">なし</div><div></div>'}</div></div>
+      <div class="sec"><h3>アポ・商談</h3><div class="kv">${P.map(([k, v]) => kv(k, v)).join('') || '<div class="sub">まだありません</div><div></div>'}</div></div>
+      <div class="sec"><h3>架電履歴</h3>${l._hist.length ? `<div class="tl">${l._hist.slice().reverse().map(g => `<div class="it"><b>${md(String(g[0]))}</b> ${esc(g[3] || '')}　<span class="b">${esc(g[4] || '')}${g[5] ? '・' + esc(g[5]) : ''}</span></div>`).join('')}</div>` : '<div class="sub">まだ架電していません</div>'}
+      ${l['更新日時'] ? `<div class="sub sm" style="margin-top:8px">最終更新 ${md(l['更新日時'])}</div>` : ''}</div>
+    </div>`;
+  $('#dclose').onclick = closeLead;
+  $('#drawer').classList.add('open'); $('#mask').classList.add('open');
+}
+// 一覧の行クリックは本体の詳細（入力フォーム付き）ではなく、読み取り専用の詳細を開く
+document.addEventListener('click', e => {
+  const tr = e.target.closest('#p-list tr.click'); if (!tr) return;
+  e.stopPropagation(); hubLead(tr.dataset.id);
+}, true);
+
 hubInit();
 load(false);
 </script>
