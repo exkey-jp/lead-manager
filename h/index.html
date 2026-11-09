@@ -269,7 +269,10 @@ async function load(sync) {
   if (D.sync && D.sync.added) toast(`新しいリードを${D.sync.added}件取り込みました`);
   render();
 }
+// テスト送信（氏名に「テスト」「test」、または 080-0000-0000・000… のようなダミー電話番号）は、集計にも一覧にも入れない
+const isTestLead = l => { const nm = String(l['氏名'] || ''), tel = String(l['電話番号'] || '').replace(/\D/g, ''); return /テスト|test/i.test(nm) || /^0\d{2}0{8}$/.test(tel) || /^0{10,}$/.test(tel); };
 function prep() {
+  D.leads = D.leads.filter(l => !isTestLead(l));
   const S = D.settings;
   const [oh, om] = String(S['架電可能時間_開始'] || '09:00').split(':').map(Number);
   const [ch, cm] = String(S['架電可能時間_終了'] || '20:00').split(':').map(Number);
@@ -690,6 +693,16 @@ function timeAnalysis(L, months, id) {
   return { html, draw };
 }
 
+// 発生月で数え直す：m（リード取得月の集計）のアポ・商談・成約・売上を、pool（絞り込み済みの全期間リード）のうち months に起きたもので置き換える。リード数・広告費はそのまま
+function evApply(m, pool, months, filtered) {
+  const evM = (l, ...ks) => { for (const k of ks) { const v = String(l[k] || ''); if (v) return v.slice(0, 7); } return ''; };
+  const won = pool.filter(l => l._won && months.includes(evM(l, '成約日', '商談実施日', 'アポ日時')));
+  m.apo = months.reduce((s, ym) => s + apoByEvent(ym, pool, filtered), 0);
+  m.deal = pool.filter(l => l._dealDone && months.includes(l._dealMon)).length;
+  m.won = won.length; m.sales = won.reduce((s, l) => s + l._sales, 0); m.gross = won.reduce((s, l) => s + l._gross, 0);
+  m.grossEst = won.some(l => l._grossEst); m.profit = m.gross - m.cost;
+  return m;
+}
 function renderAna() {
   const F = UI.ana;
   const allMons = [...new Set(D.leads.map(l => l._ym).concat(D.adcost.map(c => c.ym)))].sort();
@@ -699,6 +712,10 @@ function renderAna() {
   const inF = l => months.includes(l._ym) && (!F.camp || l['訴求'] === F.camp) && (!F.media || hasMedia(l._media, F.media));
   const L = D.leads.filter(inF);
   const M = metrics(L, costOf(months, F.camp, F.media));
+  const EV = F.basis !== 'recv';
+  const inCMa = l => (!F.camp || l['訴求'] === F.camp) && (!F.media || hasMedia(l._media, F.media));
+  // サマリ（KPI）：発生月で見るときはアポ・商談・成約・売上をその期間に起きた件数に（ファネルはリード起点のまま）
+  const MS = EV ? evApply(metrics(L, costOf(months, F.camp, F.media)), D.leads.filter(inCMa), months, !!(F.camp || F.media)) : M;
   const row = (label, m, extra = '') => `<tr ${extra}><td>${label}</td>
     <td class="num">${yen(m.cost)}</td><td class="num">${m.n}</td><td class="num">${m.valid}</td><td class="num">${pct(m.valid, m.n)}</td><td class="num cpa">${yen(div(m.cost, m.n))}</td><td class="num">${yen(div(m.cost, m.valid))}</td>
     <td class="num">${pct(m.called, m.uniq)}</td><td class="num">${pct(m.conn, m.called)}</td>
@@ -709,11 +726,11 @@ function renderAna() {
   const thead = first => `<thead><tr><th>${first}</th><th class="num">広告費</th><th class="num">リード</th><th class="num">有効</th><th class="num">有効率</th><th class="num cpa">CPL</th><th class="num">有効CPL</th><th class="num">架電率</th><th class="num">接続率</th><th class="num">アポ</th><th class="num">アポ率</th><th class="num cpa">アポ単価</th><th class="num">商談</th><th class="num">商談実施率</th><th class="num">成約</th><th class="num">成約率</th><th class="num cpa">成約単価</th><th class="num">売上</th><th class="num">粗利</th><th class="num">粗利−広告費</th><th class="num">ROAS</th></tr></thead>`;
   const byCamp = camps.filter(c => !F.camp || c['訴求'] === F.camp).filter(c => !F.media || hasMedia(c['媒体'], F.media))
     .filter(c => !F.live || c['出稿'] === '出稿中') // 「出稿中だけ」：QuanteeADで昨日・今日に費用が出ている訴求
-    .map(c => ({ c, m: metrics(L.filter(l => l['訴求'] === c['訴求']), costOf(months, c['訴求'])) })).filter(x => x.m.n || x.m.cost);
+    .map(c => { const m = metrics(L.filter(l => l['訴求'] === c['訴求']), costOf(months, c['訴求'])); if (EV) evApply(m, D.leads.filter(l => l['訴求'] === c['訴求'] && inCMa(l)), months, true); return { c, m }; }).filter(x => x.m.n || x.m.cost || x.m.apo || x.m.deal || x.m.won);
   const hasLive = camps.some(c => c['出稿']);
   // 出稿中だけに絞ったときの合計は、表に出ている訴求だけで計算する
   const liveSet = {}; byCamp.forEach(x => (liveSet[x.c['訴求']] = true));
-  const Mtab = F.live ? metrics(L.filter(l => liveSet[l['訴求']]), byCamp.reduce((a, x) => a + x.m.cost, 0)) : M;
+  const Mtab = F.live ? (() => { const t = metrics(L.filter(l => liveSet[l['訴求']]), byCamp.reduce((a, x) => a + x.m.cost, 0)); return EV ? evApply(t, D.leads.filter(l => liveSet[l['訴求']] && inCMa(l)), months, true) : t; })() : MS;
   const inCM = l => (!F.camp || l['訴求'] === F.camp) && (!F.media || hasMedia(l._media, F.media));
   // 月別：リード取得月で見る（そのリードがあとでアポ等になった数）／発生月で見る（アポ・商談・成約が起きた月で数える）
   const evMon = (l, ...ks) => { for (const k of ks) { const v = String(l[k] || ''); if (v) return v.slice(0, 7); } return ''; };
@@ -769,15 +786,16 @@ function renderAna() {
     <select id="acamp"><option value="">すべての訴求</option>${camps.map(c => `<option value="${esc(c['訴求'])}" ${F.camp === c['訴求'] ? 'selected' : ''}>${esc(c['表示名'] || c['訴求'])}</option>`).join('')}</select>
     <select id="amedia"><option value="">すべての媒体</option>${medias.map(m => `<option ${F.media === m ? 'selected' : ''}>${esc(m)}</option>`).join('')}</select>
   </div>
-  <div class="note">※ その期間に<b>取得したリード</b>が、その後アポ・商談・成約にどれだけつながったかで集計しています（リード起点）。広告費は「設定」で月×訴求ごとに入力した金額です。${M.grossEst ? `粗利の * は未入力分を売上×${D.settings['粗利率の初期値(%)']}%で推定。` : ''}</div>
+  <div class="filters" style="margin:4px 0"><span class="seg"><button data-basis="event" class="${EV ? 'on' : ''}">発生月で見る</button><button data-basis="recv" class="${EV ? '' : 'on'}">リード取得月で見る</button></span> <span class="sub sm">サマリ・月別・訴求別の数え方を切り替えます</span></div>
+  <div class="note">※ ${EV ? 'サマリ・訴求別・月別は<b>発生月</b>で数えています：アポ＝アポを取った月、商談＝商談した月、成約・売上＝成約した月（リード数・広告費はリード取得月）。率は目安です。ファネルと下の分析は、その期間に取得したリードで数えています。' + (D.apoFixed ? ` ${md(D.apoFixed.until)}までのアポ数は、それまでの管理の数字で固定しています（訴求別の行・訴求や媒体で絞ったときはシステムの数え方のため、合計と合わないことがあります）。` : '') : 'その期間に<b>取得したリード</b>が、その後アポ・商談・成約にどれだけつながったかで集計しています（リード起点）。'}広告費は「設定」で月×訴求ごとに入力した金額です。${MS.grossEst ? `粗利の * は未入力分を売上×${D.settings['粗利率の初期値(%)']}%で推定。` : ''}</div>
   <div class="grid kpis" style="margin:12px 0">
-    <div class="card kpi"><div class="l">広告費</div><div class="v">${yenS(M.cost)}</div>${D.adcostAt ? `<div class="s" title="QuanteeADから1日3回（7:30・12:30・17:30）取り込みます。それ以降に使った分はまだ入っていません">QuanteeAD ${esc(String(D.adcostAt).slice(5, 16).replace('-', '/'))} 時点</div>` : ''}</div>
-    <div class="card kpi"><div class="l">リード / 有効</div><div class="v">${M.n} / ${M.valid}</div><div class="s">CPL ${yen(div(M.cost, M.n))}・有効CPL ${yen(div(M.cost, M.valid))}</div></div>
-    <div class="card kpi"><div class="l">アポ</div><div class="v">${M.apo}件</div><div class="s">アポ率 ${pct(M.apo, M.valid)}・単価 ${yen(div(M.cost, M.apo))}</div></div>
-    <div class="card kpi"><div class="l">商談 / 成約</div><div class="v">${M.deal} / ${M.won}</div><div class="s">成約率 ${pct(M.won, M.deal)}・成約単価 ${yen(div(M.cost, M.won))}</div></div>
-    <div class="card kpi hl"><div class="l">新規売上</div><div class="v">${yenS(M.sales)}</div><div class="s">ROAS ${M.cost ? (M.sales / M.cost * 100).toFixed(0) + '%' : '-'}</div></div>
-    <div class="card kpi hl"><div class="l">新規粗利</div><div class="v">${yenS(M.gross)}</div><div class="s">${M.grossEst ? '推定を含む' : '入力値'}</div></div>
-    <div class="card kpi hl"><div class="l">粗利 − 広告費</div><div class="v" style="color:${M.profit < 0 ? '#ffb4ab' : '#b7f5c4'}">${M.cost ? yenS(M.profit) : '-'}</div><div class="s">粗利ROI ${M.cost ? (M.profit / M.cost * 100).toFixed(0) + '%' : '-'}</div></div>
+    <div class="card kpi"><div class="l">広告費</div><div class="v">${yenS(MS.cost)}</div>${D.adcostAt ? `<div class="s" title="QuanteeADから1日3回（7:30・12:30・17:30）取り込みます。それ以降に使った分はまだ入っていません">QuanteeAD ${esc(String(D.adcostAt).slice(5, 16).replace('-', '/'))} 時点</div>` : ''}</div>
+    <div class="card kpi"><div class="l">リード / 有効</div><div class="v">${MS.n} / ${MS.valid}</div><div class="s">CPL ${yen(div(MS.cost, MS.n))}・有効CPL ${yen(div(MS.cost, MS.valid))}</div></div>
+    <div class="card kpi"><div class="l">アポ</div><div class="v">${MS.apo}件</div><div class="s">アポ率 ${pct(MS.apo, MS.valid)}・単価 ${yen(div(MS.cost, MS.apo))}</div></div>
+    <div class="card kpi"><div class="l">商談 / 成約</div><div class="v">${MS.deal} / ${MS.won}</div><div class="s">成約率 ${pct(MS.won, MS.deal)}・成約単価 ${yen(div(MS.cost, MS.won))}</div></div>
+    <div class="card kpi hl"><div class="l">新規売上</div><div class="v">${yenS(MS.sales)}</div><div class="s">ROAS ${MS.cost ? (MS.sales / MS.cost * 100).toFixed(0) + '%' : '-'}</div></div>
+    <div class="card kpi hl"><div class="l">新規粗利</div><div class="v">${yenS(MS.gross)}</div><div class="s">${MS.grossEst ? '推定を含む' : '入力値'}</div></div>
+    <div class="card kpi hl"><div class="l">粗利 − 広告費</div><div class="v" style="color:${MS.profit < 0 ? '#ffb4ab' : '#b7f5c4'}">${MS.cost ? yenS(MS.profit) : '-'}</div><div class="s">粗利ROI ${MS.cost ? (MS.profit / MS.cost * 100).toFixed(0) + '%' : '-'}</div></div>
     <div class="card kpi"><div class="l">初回架電までの時間</div><div class="v">${M.respMed != null ? ago(M.respMed) : '-'}</div><div class="s">中央値（受付時間内換算）</div></div>
   </div>
   <h2>月別の成果</h2>
@@ -1131,7 +1149,7 @@ function hubInit() {
     $('#hubFull').onclick = () => { const on = document.body.classList.toggle('hub-full'); $('#hubFull').textContent = on ? '主要項目' : '全項目'; };
   }
   UI.page = 'hub';
-  UI.hub = { from: '', to: '', metric: 'apo', split: true, co: '', cmetric: 'cpa' };
+  UI.hub = { from: '', to: '', metric: 'apo', split: true, co: '', cmetric: 'cpa', basis: 'event' };
 }
 
 function hubUse(name) {
@@ -1185,9 +1203,19 @@ function hubRender() {
 }
 
 // 1社・期間の成果（各社の画面の「リード取得月」の集計と同じ）
-function hubMetrics(c, months) {
+// basis='event'（既定）：アポ＝アポを取った月、商談＝商談した月、成約・売上＝成約した月で数える（各社の成果分析「発生月で見る」と同じ）。リード数・広告費はリード取得月
+// basis='recv'：その期間に取得したリードが、その後アポ・商談・成約になった数
+function hubMetrics(c, months, basis) {
   hubUse(c.name);
   const m = metrics(D.leads.filter(l => months.includes(l._ym)), costOf(months));
+  if ((basis || UI.hub.basis) !== 'recv') {
+    const evMon = (l, ...ks) => { for (const k of ks) { const v = String(l[k] || ''); if (v) return v.slice(0, 7); } return ''; };
+    const won = D.leads.filter(l => l._won && months.includes(evMon(l, '成約日', '商談実施日', 'アポ日時')));
+    m.apo = months.reduce((s, ym) => s + apoByEvent(ym, D.leads, false), 0);
+    m.deal = D.leads.filter(l => l._dealDone && months.includes(l._dealMon)).length;
+    m.won = won.length; m.sales = won.reduce((s, l) => s + l._sales, 0); m.gross = won.reduce((s, l) => s + l._gross, 0);
+    m.grossEst = won.some(l => l._grossEst); m.profit = m.gross - m.cost;
+  }
   hubUse(UI.hubSel);
   return m;
 }
@@ -1336,7 +1364,8 @@ function renderHub() {
     <button class="btn sm" data-hq="this">今月</button><button class="btn sm" data-hq="last">先月</button><button class="btn sm" data-hq="all">全期間</button>
   </div>
   ${bad.length ? `<div class="hint">取得できなかった会社：${bad.map(c => `<b>${esc(c.name)}</b>（${esc(c.error)}）`).join('、')}</div>` : ''}
-  <div class="note">※ 各社のシステムの「成果分析」と同じ数え方です（その期間に取得したリードが、その後アポ・商談・成約にどれだけつながったか）。有効リード・商談の定義は会社ごとの設定のままです。会社名を押すと、その会社の成果分析を開きます。個人を特定できる情報（氏名・電話番号・メモ）は取得していません。</div>
+  <div class="filters" style="margin:4px 0"><span class="seg"><button data-hbasis="event" class="${F.basis !== 'recv' ? 'on' : ''}">発生月で見る</button><button data-hbasis="recv" class="${F.basis === 'recv' ? 'on' : ''}">リード取得月で見る</button></span></div>
+  <div class="note">※ ${F.basis !== 'recv' ? '<b>発生月</b>で数えています：アポ＝アポを取った月、商談＝商談した月、成約・売上＝成約した月（リード数・広告費はリード取得月）。各社の成果分析の「月別の成果（発生月で見る）」と同じです。率は目安です。' : '<b>リード取得月</b>で数えています：その期間に取得したリードが、その後アポ・商談・成約にどれだけつながったか（各社の成果分析の上部と同じ）。'}有効リード・商談の定義は会社ごとの設定のままです。会社名を押すと、その会社の成果分析を開きます。個人を特定できる情報（氏名・電話番号・メモ）は取得していません。</div>
   <div class="grid kpis" style="margin:12px 0">
     <div class="card kpi"><div class="l">広告費（全社）</div><div class="v">${yenS(T.cost)}</div></div>
     <div class="card kpi"><div class="l">リード / 有効</div><div class="v">${T.n} / ${T.valid}</div><div class="s">CPL ${yen(div(T.cost, T.n))}</div></div>
@@ -1349,7 +1378,7 @@ function renderHub() {
   <div class="tblwrap"><table class="mt">${head}<tbody>${rows.map(x => row(`<a href="#" data-co="${esc(x.c.name)}"><b>${esc(x.c.name)}</b></a>`, x.m)).join('')}${rows.length > 1 ? row('合計', T, 'class="total"') : ''}</tbody></table></div>
   <h2 style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">月別の推移
     <select id="hmetric">${HUBM.map(([k, t]) => `<option value="${k}" ${mk === k ? 'selected' : ''}>${t}</option>`).join('')}</select>
-    <span class="sub sm">リード取得月ごと</span></h2>
+    <span class="sub sm">${F.basis !== 'recv' ? '発生月ごと（リード・広告費は取得月）' : 'リード取得月ごと'}</span></h2>
   <div class="tblwrap"><table><thead><tr><th>会社</th>${trendMons.map(m => `<th class="num">${m}</th>`).join('')}</tr></thead><tbody>
     ${grid.map(g => `<tr><td><a href="#" data-co="${esc(g.c.name)}">${esc(g.c.name)}</a></td>${g.by.map(m => `<td class="num">${hubFmt(hubVal(m, mk), mk)}</td>`).join('')}</tr>`).join('')}
     ${grid.length > 1 ? `<tr class="total"><td>合計</td>${tot.map(m => `<td class="num">${hubFmt(hubVal(m, mk), mk)}</td>`).join('')}</tr>` : ''}
@@ -1359,12 +1388,13 @@ function renderHub() {
 
   const sv = (id, k) => ($(id).onchange = e => { F[k] = e.target.value; if (F.from > F.to) F.to = F.from; renderHub(); });
   sv('#hfrom', 'from'); sv('#hto', 'to'); sv('#hmetric', 'metric');
+  document.querySelectorAll('#p-hub [data-hbasis]').forEach(b => (b.onclick = () => { F.basis = b.dataset.hbasis; renderHub(); }));
   document.querySelectorAll('[data-hq]').forEach(b => (b.onclick = () => {
     const c = today().slice(0, 7); const [y, m] = c.split('-').map(Number); const last = m === 1 ? `${y - 1}-12` : `${y}-${p2(m - 1)}`;
     if (b.dataset.hq === 'this') F.from = F.to = c; if (b.dataset.hq === 'last') F.from = F.to = last; if (b.dataset.hq === 'all') { F.from = UI.hub.mons[0]; F.to = c; }
     renderHub();
   }));
-  document.querySelectorAll('#p-hub [data-co]').forEach(a => (a.onclick = e => { e.preventDefault(); hubUse(a.dataset.co); UI.ana.from = F.from; UI.ana.to = F.to; UI.ana.camp = ''; UI.ana.media = ''; UI.page = 'ana'; render(); }));
+  document.querySelectorAll('#p-hub [data-co]').forEach(a => (a.onclick = e => { e.preventDefault(); hubUse(a.dataset.co); UI.ana.from = F.from; UI.ana.to = F.to; UI.ana.camp = ''; UI.ana.media = ''; UI.ana.basis = F.basis === 'recv' ? 'recv' : 'event'; UI.page = 'ana'; render(); }));
   charts.forEach(c => c.destroy()); charts = [];
   TAh.draw();
   if (window.Chart) {
