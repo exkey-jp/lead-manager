@@ -559,7 +559,7 @@ const isInvalid = l => !l._valid; // 有効・無効はリード情報（会社�
 function statusTree() {
   const DF = D.dealRule && D.dealRule.dateField;
   // アポを取ったリードはリード情報にかかわらず有効に数える（アポ数をそろえるため）
-  const val = l => l._apo || !isInvalid(l), fol = l => val(l) && !l._apo, ap = l => l._apo;
+  const val = l => l._apo || !isInvalid(l), fol = l => val(l) && !l._apo, ap = l => l._apo, mik = l => fol(l) && /見込/.test(String(l['最終架電結果'] || ''));
   if (DF) {
     // 進捗表を使う会社：商談＝進捗表M列（商談日）あり／初訪NG＝商談日なし・訪問結果NGかツブレ／商談前＝それ以外で進捗表にあるアポ／進捗表なし＝架電シートでアポだが進捗表にまだない
     const vr = l => String(l['進捗_訪問結果'] || '').trim();
@@ -571,6 +571,7 @@ function statusTree() {
       { k: 'inv', t: '無効', d: 1, f: l => !val(l) },
       { k: 'val', t: '有効', d: 1, f: val },
       { k: 'fol', t: '追客中', d: 2, f: fol },
+      { k: 'mik', t: '見込み', d: 3, f: mik }, // 追客中のうち、最終架電結果が「再架電/見込み」
       { k: 'apo', t: 'アポ', d: 2, f: ap },
       { k: 'fng', t: '初訪NG', d: 3, f: fng },
       { k: 'pre', t: '商談前', d: 3, f: pre },
@@ -587,6 +588,7 @@ function statusTree() {
     { k: 'inv', t: '無効', d: 1, f: l => !val(l) },
     { k: 'val', t: '有効', d: 1, f: val },
     { k: 'fol', t: '追客中', d: 2, f: fol },
+      { k: 'mik', t: '見込み', d: 3, f: mik }, // 追客中のうち、最終架電結果が「再架電/見込み」
     { k: 'apo', t: 'アポ', d: 2, f: ap },
     { k: 'fng', t: '初訪NG', d: 3, f: l => ap(l) && visitNG(l) },
     { k: 'deal', t: '商談', d: 3, f: dl },
