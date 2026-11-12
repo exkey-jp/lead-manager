@@ -117,7 +117,7 @@ details.campinfo{margin-bottom:6px}details.campinfo>summary{cursor:pointer;font-
 .tl .it:before{content:"";position:absolute;left:-20px;top:6px;width:10px;height:10px;border-radius:50%;background:var(--pri)}
 .tl .it.商談:before{background:var(--pur)} .tl .it.変更:before{background:var(--gray)}
 .memo{white-space:pre-wrap;background:#fafbfc;border-radius:8px;padding:8px;font-size:13px}
-#toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#202124;color:#fff;padding:10px 18px;border-radius:8px;display:none;z-index:99}
+#toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);width:max-content;max-width:90vw;background:#202124;color:#fff;padding:10px 18px;border-radius:8px;display:none;z-index:99}
 .empty{color:var(--sub);text-align:center;padding:30px}
 .note{font-size:12px;color:var(--sub);margin:6px 0}
 .pill{display:inline-block;background:var(--graybg);border-radius:6px;padding:2px 8px;margin:2px;font-size:12px}
@@ -133,6 +133,50 @@ details.campinfo{margin-bottom:6px}details.campinfo>summary{cursor:pointer;font-
 .memoCell:hover{border-color:var(--line);background:#fff}
 td textarea.memoEdit{width:240px;min-height:70px;font-size:12px}
 .hint{background:var(--yelbg);border-radius:8px;padding:8px 12px;font-size:12px;color:#6b4a00;margin-bottom:12px}
+/* ===== スマホ（幅700px以下）：一覧はカード、詳細は全画面・大きいボタン ===== */
+.mcards{display:flex;flex-direction:column;gap:8px}
+.mcard{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:flex;gap:10px;align-items:center;cursor:pointer}
+.mcard.dup{background:#262626;color:#9a9a9a}.mcard.lost{background:#eceff1;color:#80868b}
+.mcard .mc{flex:1;min-width:0}
+.mcard .r1{display:flex;align-items:center;gap:6px;flex-wrap:wrap}.mcard .r1 b{font-size:15px}
+.mcard .r2,.mcard .r3{font-size:12px;color:var(--sub);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mcard .why{font-size:11px;font-weight:700}
+.mtel{flex:none;width:46px;height:46px;border-radius:50%;background:var(--pri2);color:var(--pri);display:flex;align-items:center;justify-content:center;font-size:20px;text-decoration:none}
+.dfoot{display:none}
+@media(max-width:700px){
+  header{height:auto;flex-wrap:wrap;gap:0 8px;padding:6px 10px 0}
+  header h1{font-size:14px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+  .hd-right{font-size:11px;gap:6px}.hd-right .btn{padding:4px 8px}
+  nav{order:3;width:100%;height:40px;overflow-x:auto}nav button{padding:0 10px;flex:none}
+  main{padding:8px}
+  .alerts,.kpis{grid-template-columns:1fr 1fr;gap:8px}.card{padding:12px}.al .n{font-size:24px}
+  h2{font-size:14px;margin:16px 0 8px}
+  #p-list .filters{gap:6px}#p-list .filters input#fq{width:100%!important;font-size:16px;padding:8px 10px}
+  #p-list .filters select,#p-list .filters .btn{font-size:13px;padding:6px 8px}
+  #ftree,#p-list .seg{display:none!important}
+  .stree{flex-direction:row;flex-wrap:nowrap;overflow-x:auto;width:100%;padding:6px;gap:6px;max-height:none}
+  .stree .chip{margin-left:0!important;flex:none;font-size:12px;padding:4px 10px}.stree .chip .sub{display:none}
+  .lmain{width:100%}
+  #drawer{width:100%}
+  .dh{padding:10px 12px}.dh .nm{font-size:17px}
+  .dh .tel{display:inline-flex;align-items:center;justify-content:center;margin-top:6px;padding:10px 16px;border-radius:10px;background:var(--pri);color:#fff;font-size:17px}
+  .db{padding:10px 10px 90px}.sec{padding:12px 10px}
+  .kv{grid-template-columns:110px 1fr}
+  .form{grid-template-columns:1fr;gap:4px}.form label{margin-top:6px}
+  .form input,.form select,.form textarea,#cCaller{width:100%;font-size:16px;padding:10px}
+  .form input[type=date],.form input[type=datetime-local]{min-height:44px}
+  textarea{font-size:16px}
+  .rbtns{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+  .rb{min-height:46px;font-size:14px;padding:6px 4px;border-radius:10px}
+  .rbtns .cat{grid-column:1/-1;margin-top:6px}
+  [data-nx]{padding:8px 10px!important;font-size:13px!important;margin-top:6px}
+  .dh .btn#dclose{white-space:nowrap}#updated{display:none}
+  #cSave,#dSave{width:100%;padding:14px;font-size:16px;border-radius:10px}
+  .dfoot{display:flex;gap:8px;position:absolute;left:0;right:0;bottom:0;padding:10px 12px calc(10px + env(safe-area-inset-bottom));background:#fff;border-top:1px solid var(--line);box-shadow:0 -2px 10px rgba(0,0,0,.06)}
+  .dfoot a,.dfoot button{flex:1;text-align:center;padding:12px;border-radius:10px;font:inherit;font-size:15px;font-weight:700;text-decoration:none}
+  .dfoot a{background:var(--pri2);color:var(--pri)}.dfoot button{background:var(--pri);color:#fff;border:0}
+  body.dopen{overflow:hidden}
+}
 </style>
 </head>
 <body>
@@ -166,7 +210,7 @@ const API_URL = 'https://script.google.com/macros/s/AKfycbwda4Nh1Xf2PVAm3bsSBB-4
 const NS = STATIC ? '_' + API_URL.replace(/\/exec$/, '').slice(-16) : '';
 const TK = { get: () => { try { return localStorage.getItem('lm_token' + NS) || ''; } catch (e) { return ''; } }, set: v => { try { v ? localStorage.setItem('lm_token' + NS, v) : localStorage.removeItem('lm_token' + NS); } catch (e) {} } };
 let D = null;               // api_bootstrap の戻り
-const UI = { page: 'home', alert: 'all', list: { q: '', st: '', camp: '', owner: '', from: '', to: '', need: false, view: 'list', apoOnly: false, info: false, tree: (() => { try { return localStorage.getItem('tree' + NS) !== '0'; } catch (e) { return true; } })() }, ana: { from: '', to: '', camp: '', media: '', basis: 'event', live: false }, sel: null, sort: { k: '受信日時', d: -1 } };
+const UI = { page: 'home', alert: 'all', list: { q: '', st: '', camp: '', owner: '', rep: '', from: '', to: '', need: false, view: 'list', apoOnly: false, info: false, tree: (() => { try { return localStorage.getItem('tree' + NS) !== '0'; } catch (e) { return true; } })() }, ana: { from: '', to: '', camp: '', media: '', basis: 'event', live: false }, sel: null, sort: { k: '受信日時', d: -1 } };
 const $ = s => document.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const yen = n => (n == null || !isFinite(n)) ? '-' : '¥' + Math.round(n).toLocaleString();
@@ -181,6 +225,10 @@ const fmt = d => { const j = jst(d); return `${j.y}-${p2(j.m)}-${p2(j.d)} ${p2(j
 const today = () => fmt(new Date()).slice(0, 10);
 const md = s => s ? `${+s.slice(5, 7)}/${+s.slice(8, 10)}${s.length > 10 ? ' ' + s.slice(11, 16) : ''}` : '';
 const ago = min => min < 60 ? `${Math.round(min)}分` : min < 1440 ? `${Math.floor(min / 60)}時間${Math.round(min % 60)}分` : `${Math.floor(min / 1440)}日${Math.floor(min % 1440 / 60)}時間`;
+// スマホ（幅700px以下）かどうか。幅が変わったら描き直す
+const MQ = window.matchMedia ? matchMedia('(max-width:700px)') : null;
+const MOB = () => !!(MQ && MQ.matches) && !window.HUB_MODE;
+if (MQ) (MQ.addEventListener ? MQ.addEventListener('change', () => D && render()) : MQ.addListener(() => D && render()));
 function toast(m) { const t = $('#toast'); t.textContent = m; t.style.display = 'block'; clearTimeout(t._t); t._t = setTimeout(() => t.style.display = 'none', 3000); }
 function call(fn, ...args) {
   if (STATIC) {
@@ -268,10 +316,10 @@ async function load(sync) {
   if (D.sync && D.sync.added) toast(`新しいリードを${D.sync.added}件取り込みました`);
   render();
 }
-// テスト送信（氏名に「テスト」「test」、または 080-0000-0000・000… のようなダミー電話番号）は、集計にも一覧にも入れない
+// テスト送信（氏名に「テスト」「test」、または 080-0000-0000・000… のようなダミー電話番号）は、集計にも一覧にも入れない（今はアームズ＝進捗表を使う会社だけ）
 const isTestLead = l => { const nm = String(l['氏名'] || ''), tel = String(l['電話番号'] || '').replace(/\D/g, ''); return /テスト|test/i.test(nm) || /^0\d{2}0{8}$/.test(tel) || /^0{10,}$/.test(tel); };
 function prep() {
-  D.leads = D.leads.filter(l => !isTestLead(l));
+  if (D.dealRule && D.dealRule.dateField) D.leads = D.leads.filter(l => !isTestLead(l));
   const S = D.settings;
   const [oh, om] = String(S['架電可能時間_開始'] || '09:00').split(':').map(Number);
   const [ch, cm] = String(S['架電可能時間_終了'] || '20:00').split(':').map(Number);
@@ -366,8 +414,26 @@ function stBadge(s) { return `<span class="st st-${esc(s)}">${esc(s)}</span>`; }
 const lastRes = l => String(l['進捗_再訪結果'] || l['進捗_商談結果'] || '');
 const isLost = l => ['失注', '断り', '対象外'].includes(l['ステータス']) || ['失注', 'ツブレ'].includes(l['商談ステータス']) || /NG|失注|ツブレ/i.test(String(lastRes(l)));
 const rowCls = l => l['ステータス'] === '重複' ? 'dup' : isLost(l) ? 'lost' : '';
+// スマホ用：1リード＝1枚のカード。右の📞で発信（同時に詳細も開くので、通話後すぐ結果を記録できる）
+function mCards(list, why) {
+  if (!list.length) return `<div class="empty">該当するリードはありません</div>`;
+  return `<div class="mcards">${list.map(l => {
+    const nx = toD(l['次回架電予定']), unt = l['ステータス'] === '未対応';
+    const r2 = [campName(l['訴求']), l['都道府県'], num(l['架電回数']) ? `架電${num(l['架電回数'])}回` : '', String(l['最終架電結果'] || '').replace(/^[^/]*\//, '')].filter(Boolean).map(esc).join('・');
+    const r3 = [unt ? `<span class="${l._wait >= num(D.settings['初回架電の警告(分)']) ? 'red b' : l._wait >= num(D.settings['初回架電の目標(分)']) ? 'yel b' : ''}">取得 ${md(l['受信日時'])}（${l._wait <= 0 ? '受付時間前' : ago(l._wait) + '経過'}）</span>` : `取得 ${md(l['受信日時'])}`,
+      nx ? `<span class="${nx < Date.now() ? 'red b' : ''}">次回 ${md(l['次回架電予定'])}</span>` : '', l['アポ日時'] ? `${isVisit() ? '訪問' : 'アポ'} ${md(l['アポ日時'])}` : '', l['メモ'] ? esc(String(l['メモ']).split('\n')[0]) : ''].filter(Boolean).join('　');
+    return `<div class="mcard ${rowCls(l)}" data-id="${l['リードID']}"><div class="mc">
+      ${why && l._why ? `<div class="why ${l._c === 'red' ? 'red' : l._c === 'yel' ? 'yel' : ''}">${esc(l._why)}</div>` : ''}
+      <div class="r1"><b>${esc(l['氏名'])}</b>${stBadge(l['ステータス'])}${l._notHouse ? '<span class="nh">戸建て以外</span>' : ''}${l._areaOut ? '<span class="nh">エリア外</span>' : ''}</div>
+      <div class="r2">${r2}</div><div class="r3">${r3}</div></div>
+      ${l['電話番号'] ? `<a class="mtel" href="tel:${esc(l['電話番号'])}" data-tel="${l['リードID']}" aria-label="電話する">📞</a>` : ''}</div>`;
+  }).join('')}</div>`;
+}
+// 進捗表を使わない会社（アームズ以外）：アポ日時＝初回訪問日、再訪日・成約金額（＝売上）を使う
+const isVisit = () => !(D && D.dealRule && D.dealRule.dateField);
 function leadRows(list, cols) {
   if (!list.length) return `<div class="empty">該当するリードはありません</div>`;
+  if (MOB()) return mCards(list);
   const C = {
     recv: ['リード取得日', l => `${md(l['受信日時'])}`],
     wait: ['経過', l => l['ステータス'] === '未対応' ? `<span class="${l._wait >= num(D.settings['初回架電の警告(分)']) ? 'red b' : l._wait >= num(D.settings['初回架電の目標(分)']) ? 'yel b' : ''}">${l._wait <= 0 ? '受付時間前' : ago(l._wait)}</span>` : (l._resp != null ? `<span class="sub" title="初回架電までの時間">${ago(l._resp)}</span>` : '')],
@@ -382,18 +448,21 @@ function leadRows(list, cols) {
     hist: ['架電履歴', l => l._hist.length ? `<div class="hist">${l._hist.map(g => `<div title="${esc(g[3] || '')}">${md(String(g[0]))} ${esc(g[5] || g[4])}</div>`).join('')}</div>` : ''],
     memo: ['備考メモ', l => `<div class="memoCell" data-memo="${l['リードID']}" title="クリックして入力">${l['メモ'] ? esc(l['メモ']) : '<span class="sub">＋ 入力</span>'}</div>`],
     next: ['次回架電', l => { const d = toD(l['次回架電予定']); return d ? `<span class="${d < Date.now() ? 'red b' : ''}">${md(l['次回架電予定'])}</span>` : ''; }],
-    apo: ['アポ日時', l => md(l['アポ日時'])],
+    apo: [isVisit() ? '初回訪問日' : 'アポ日時', l => md(l['アポ日時'])],
+    ddate: ['商談実施日', l => md(String(l['商談実施日'] || '').slice(0, 16))],
+    quote: ['見積金額', l => l['見積金額'] !== '' && l['見積金額'] != null ? yen(num(l['見積金額'])) : ''],
     deal: ['商談', l => esc(l['商談ステータス'])],
     dres: ['商談結果', l => `<span class="sm">${esc(l['進捗_商談結果'] || '')}</span>`], // 進捗表の商談結果
     v1d: ['初訪日', l => md(String(l['進捗_初訪日'] || '').slice(0, 10))],
     v1r: ['初訪結果', l => `<span class="sm">${esc(l['進捗_訪問結果'] || '')}</span>`],
     invd: ['調査日', l => md(String(l['進捗_調査日'] || '').slice(0, 10))],
     invr: ['調査結果', l => `<span class="sm">${esc(l['進捗_調査結果'] || '')}</span>`],
-    rvd: ['商談再訪日', l => md(String(l['進捗_再訪日'] || '').slice(0, 10))],
+    rvd: [isVisit() ? '再訪日' : '商談再訪日', l => md(String(l['進捗_再訪日'] || '').slice(0, 16))],
     rvr: ['商談再訪結果', l => `<span class="sm">${esc(l['進捗_再訪結果'] || '')}</span>`],
     dd: ['商談日', l => md(String(l['進捗_商談日'] || '').slice(0, 10))],
-    owner: ['担当', l => esc(l['担当者'])],
-    sales: ['売上', l => l._won ? yen(l._sales) : ''],
+    owner: ['架電担当', l => esc(l['担当者'])],
+    rep: ['営業担当', l => esc(l['営業担当'] || '')],
+    sales: [isVisit() ? '成約金額' : '売上', l => l._won ? yen(l._sales) : ''],
   };
   cols.filter(c => c.startsWith('q:')).forEach(c => { const q = c.slice(2); C[c] = [`<span title="${esc(q)}">${esc(shortQ(q))}</span>`, l => `<span class="sm">${esc(l._ans[q] || '')}</span>`]; });
   return `<div class="tblwrap"><table><thead><tr>${cols.map(c => `<th>${C[c][0]}</th>`).join('')}</tr></thead><tbody>${list.map(l => `<tr class="click ${rowCls(l)}" data-id="${l['リードID']}">${cols.map(c => `<td${c === 'camp' ? ' class="cmp"' : ''}>${C[c][1](l)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
@@ -404,7 +473,16 @@ function progRows(list, showCamp) {
   if (!list.length) return `<div class="empty">該当するリードはありません</div>`;
   const lead = [['リード取得日', l => md(l['受信日時'])], ['氏名', l => `<b>${esc(l['氏名'])}</b>${l._notHouse ? '<span class="nh">戸建て以外</span>' : ''}${l._areaOut ? '<span class="nh">エリア外</span>' : ''}`]]
     .concat(showCamp ? [['訴求', l => `<span class="sm">${esc(campName(l['訴求']))}</span>`]] : []).concat([['電話番号', l => esc(l['電話番号'])], ['ステータス', l => stBadge(l['ステータス'])]]);
-  const deal = [
+  const deal = isVisit() ? [
+    ['商談', l => l['商談ステータス'] ? `<span class="dst ${esc(l['商談ステータス'])}">${esc(l['商談ステータス'])}</span>` : (l._apo ? '' : '<span class="sub sm">―</span>')],
+    ['初回訪問日', l => md(String(l['アポ日時'] || ''))],
+    ['商談実施日', l => md(String(l['商談実施日'] || '').slice(0, 16))],
+    ['再訪日', l => md(String(l['進捗_再訪日'] || '').slice(0, 16))],
+    ['営業担当', l => esc(l['営業担当'])],
+    ['商材', l => `<span class="sm">${esc(l['商材'])}</span>`],
+    ['見積金額', l => l['見積金額'] !== '' && l['見積金額'] != null ? yen(num(l['見積金額'])) : ''],
+    ['成約金額', l => l._won ? `<b>${yen(l._sales)}</b>` : ''],
+  ] : [
     ['商談', l => l['商談ステータス'] ? `<span class="dst ${esc(l['商談ステータス'])}">${esc(l['商談ステータス'])}</span>` : (l._apo ? '' : '<span class="sub sm">―</span>')],
   ].concat(D.leads.some(l => l['進捗_商談結果']) ? [['商談結果', l => `<span class="sm">${esc(l['進捗_商談結果'] || '')}</span>`]] : []).concat([
     ['訪問・商談日', l => md(String(l['アポ日時'] || l['商談実施日'] || ''))],
@@ -417,7 +495,7 @@ function progRows(list, showCamp) {
     ['架電', l => num(l['架電回数']) || ''],
     ['最終結果', l => `<span class="sm">${esc(String(l['最終架電結果']).replace('/', '・'))}</span>`],
     ['最終架電日時', l => md(String(l['最終架電日時']))],
-    ['架電者', l => esc(l['担当者'])],
+    ['架電担当', l => esc(l['担当者'])],
     ['アポ取得日', l => l._apo ? `<b>${md(String(l['アポ獲得日'] || ''))}</b>` : ''],
     ['架電履歴', l => l._hist.length ? `<div class="hist">${l._hist.map(g => `<div>${md(String(g[0]))} ${esc(g[5] || g[4])}${g[3] ? `<span class="sub">（${esc(g[3])}）</span>` : ''}</div>`).join('')}</div>` : ''],
     ['備考メモ', l => `<div class="memoCell" data-memo="${l['リードID']}" title="クリックして入力">${l['メモ'] ? esc(l['メモ']) : '<span class="sub">＋ 入力</span>'}</div>`],
@@ -448,6 +526,9 @@ function renderHome(A) {
   const sel = UI.alert === 'all' ? null : A.find(a => a.k === UI.alert);
   let list = sel ? sel.list : A.filter(a => !['new', 'long', 'apo'].includes(a.k)).flatMap(a => a.list.map(l => Object.assign(l, { _why: a.t, _c: a.c })));
   const seen = new Set(); list = list.filter(l => !seen.has(l['リードID']) && seen.add(l['リードID']));
+  // D.alertSkip（例：{対象判定:'対象外'}）に当てはまるリードは「要対応のリード」一覧に出さない（集計・アラート件数には含める）
+  const SK = D.alertSkip || {};
+  if (!sel) list = list.filter(l => !Object.keys(SK).some(k => String((l._ans || {})[k] || '').trim() === SK[k]));
   $('#p-home').innerHTML = `
   <div class="grid kpis" style="margin-bottom:16px">
     <div class="card kpi"><div class="l">今日の新着</div><div class="v">${todayNew}件</div></div>
@@ -460,7 +541,7 @@ function renderHome(A) {
   <div class="grid alerts">${A.map(a => `<div class="card al ${a.c} ${a.list.length ? '' : 'zero'} ${UI.alert === a.k ? 'on' : ''}" data-al="${a.k}"><div class="t">${a.t}</div><div class="n">${a.list.length}</div><div class="d">${a.d}</div></div>`).join('')}</div>
   <h2>${sel ? esc(sel.t) + ' の一覧 <button class="btn sm" data-al="all">すべての要対応に戻す</button>' : '要対応のリード（未架電・期限切れ・止まっている追客・結果未入力・検討中フォロー）'}</h2>
   ${sel ? leadRows(list, sel.k === 'apo' || sel.k === 'nores' ? ['apo', 'name', 'tel', 'camp', 'deal', 'owner', 'recv'] : ['recv', 'wait', 'name', 'tel', 'pref', 'camp', 'st', 'cnt', 'last', 'next', 'owner'])
-      : list.length ? `<div class="tblwrap"><table><thead><tr><th>理由</th><th>リード取得日</th><th>経過</th><th>氏名</th><th>電話番号</th><th>訴求</th><th>ステータス</th><th>架電</th><th>次回架電</th><th>アポ日時</th><th>担当</th></tr></thead><tbody>${list.map(l => `<tr class="click" data-id="${l['リードID']}"><td><span class="${l._c === 'red' ? 'red' : l._c === 'yel' ? 'yel' : ''} b sm">${esc(l._why)}</span></td><td>${md(l['受信日時'])}</td><td>${l['ステータス'] === '未対応' ? ago(Math.max(0, l._wait)) : ''}</td><td><b>${esc(l['氏名'])}</b></td><td>${esc(l['電話番号'])}</td><td class="sm">${esc(campName(l['訴求']))}</td><td>${stBadge(l['ステータス'])}</td><td>${num(l['架電回数']) || ''}</td><td>${md(l['次回架電予定'])}</td><td>${md(l['アポ日時'])}</td><td>${esc(l['担当者'])}</td></tr>`).join('')}</tbody></table></div>`
+      : list.length && MOB() ? mCards(list, true) : list.length ? `<div class="tblwrap"><table><thead><tr><th>理由</th><th>リード取得日</th><th>経過</th><th>氏名</th><th>電話番号</th><th>訴求</th><th>ステータス</th><th>架電</th><th>次回架電</th><th>${isVisit() ? '初回訪問日' : 'アポ日時'}</th><th>架電担当</th></tr></thead><tbody>${list.map(l => `<tr class="click" data-id="${l['リードID']}"><td><span class="${l._c === 'red' ? 'red' : l._c === 'yel' ? 'yel' : ''} b sm">${esc(l._why)}</span></td><td>${md(l['受信日時'])}</td><td>${l['ステータス'] === '未対応' ? ago(Math.max(0, l._wait)) : ''}</td><td><b>${esc(l['氏名'])}</b></td><td>${esc(l['電話番号'])}</td><td class="sm">${esc(campName(l['訴求']))}</td><td>${stBadge(l['ステータス'])}</td><td>${num(l['架電回数']) || ''}</td><td>${md(l['次回架電予定'])}</td><td>${md(l['アポ日時'])}</td><td>${esc(l['担当者'])}</td></tr>`).join('')}</tbody></table></div>`
       : '<div class="card empty">要対応のリードはありません 🎉</div>'}`;
 }
 
@@ -468,13 +549,17 @@ function renderHome(A) {
 function renderList() {
   const F = UI.list, L = D.leads;
   const owners = [...new Set(L.map(l => l['担当者']).filter(Boolean))].sort();
+  const reps = [...new Set(L.map(l => l['営業担当']).filter(Boolean))].sort();
+  if (F.rep && !reps.includes(F.rep)) F.rep = '';
   const camps = D.campaigns.slice().sort((a, b) => num(a['並び順']) - num(b['並び順']));
   if (F.camp && !camps.some(c => c['訴求'] === F.camp)) F.camp = '';
   const mons = [...new Set(L.map(l => l._ym))].sort().reverse();
-  const base = L.filter(l => (!F.camp || l['訴求'] === F.camp) && (!F.owner || l['担当者'] === F.owner) && (!F.from || l._ym >= F.from) && (!F.to || l._ym <= F.to)
+  const base = L.filter(l => (!F.camp || l['訴求'] === F.camp) && (!F.owner || l['担当者'] === F.owner) && (!F.rep || l['営業担当'] === F.rep) && (!F.from || l._ym >= F.from) && (!F.to || l._ym <= F.to)
     && (!F.q || (l['氏名'] + l['電話番号'] + l['都道府県'] + l['メモ']).replace(/[-\s]/g, '').includes(F.q.replace(/[-\s]/g, ''))));
   const cnt = {}; base.forEach(l => cnt[l['ステータス']] = (cnt[l['ステータス']] || 0) + 1);
   const DRES = L.some(l => l['進捗_商談結果']) ? ['dres'] : []; // 進捗表を使う会社だけ「商談結果」列を出す
+  // 商談の列：アームズ以外は商談欄と同じ並び（商談・初回訪問日・商談実施日・再訪日・見積金額・成約金額）
+  const DEALC = isVisit() ? ['owner', 'deal', 'rep', 'apo', 'ddate', 'rvd', 'quote', 'sales'] : ['owner', 'apo', 'deal', 'rep', ...DRES, 'sales'];
   const TREE = statusTree(), node = TREE.find(n => n.k === F.st);
   if (F.st && !node) F.st = '';
   // 階層で「商談」以下（成約・失注・検討）を選んだときは、架電の列の代わりに進捗表の初訪〜商談の列を出す
@@ -504,10 +589,11 @@ function renderList() {
   $('#p-list').innerHTML = `${tabs}${head}
   <div class="filters">
     <input id="fq" placeholder="氏名・電話番号・メモで検索" value="${esc(F.q)}" style="width:240px">
-    <select id="fowner"><option value="">すべての担当</option>${owners.map(o => `<option ${F.owner === o ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>
+    <select id="fowner"><option value="">すべての架電担当</option>${owners.map(o => `<option ${F.owner === o ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>
+    <select id="frep"><option value="">すべての営業担当</option>${reps.map(o => `<option ${F.rep === o ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>
     リード取得月 <select id="ffrom"><option value="">指定なし</option>${mons.map(m => `<option ${F.from === m ? 'selected' : ''}>${m}</option>`).join('')}</select>〜
     <select id="fto"><option value="">指定なし</option>${mons.map(m => `<option ${F.to === m ? 'selected' : ''}>${m}</option>`).join('')}</select>
-    <select id="fsort">${[['受信日時', 'リード取得日'], ['最終架電日時', '最終架電日時'], ['次回架電予定', '次回架電予定'], ['アポ日時', 'アポ日時'], ['更新日時', '更新日時']].map(([v, t]) => `<option value="${v}" ${k === v ? 'selected' : ''}>${t}順</option>`).join('')}</select>
+    <select id="fsort">${[['受信日時', 'リード取得日'], ['最終架電日時', '最終架電日時'], ['次回架電予定', '次回架電予定'], ['アポ日時', isVisit() ? '初回訪問日' : 'アポ日時'], ['更新日時', '更新日時']].map(([v, t]) => `<option value="${v}" ${k === v ? 'selected' : ''}>${t}順</option>`).join('')}</select>
     <button class="btn sm" id="fdir">${d < 0 ? '新しい順' : '古い順'}</button>
 <button class="btn sm" id="ftree" title="左のステータス階層の表示を切り替え">${F.tree === false ? '階層を表示' : '階層を隠す'}</button>
     <label class="sm" style="display:inline-flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="fapo" ${F.apoOnly ? 'checked' : ''}>アポ取得したリードだけ</label>
@@ -515,10 +601,10 @@ function renderList() {
     <span class="sub sm">${list.length}件</span>
   </div>
   <div class="lwrap">${F.tree === false ? '' : `<div class="stree">${TREE.map(n => `<span class="chip ${(F.st || 'all') === n.k ? 'on' : ''}" data-st="${n.k === 'all' ? '' : n.k}" style="margin-left:${n.d * 12}px">${n.d ? '<span class="sub">∟</span> ' : ''}${esc(n.t)} <b>${base.filter(n.f).length}</b></span>`).join('')}</div>`}
-  <div class="lmain">${F.view === 'prog' ? progRows(list.slice(0, 500), !F.camp) : leadRows(list.slice(0, 500), DCOLS ? ['recv', 'wait', ...(F.camp ? [] : ['camp']), 'name', 'pref', 'tel', ...qcols, 'memo', 'v1d', 'v1r', 'invd', 'invr', 'dd', 'dres', 'rvd', 'rvr', 'deal', 'sales', 'owner'] : F.camp ? ['recv', 'wait', 'name', 'pref', 'tel', ...qcols, 'st', 'cnt', 'last', 'lastAt', 'hist', 'memo', 'next', 'apo', 'deal', ...DRES, 'sales', 'owner'] : ['recv', 'wait', 'camp', 'name', 'pref', 'tel', 'st', 'cnt', 'last', 'lastAt', 'hist', 'memo', 'next', 'apo', 'deal', ...DRES, 'sales', 'owner'])}
+  <div class="lmain">${F.view === 'prog' ? progRows(list.slice(0, 500), !F.camp) : leadRows(list.slice(0, 500), DCOLS ? ['recv', 'wait', ...(F.camp ? [] : ['camp']), 'name', 'pref', 'tel', ...qcols, 'memo', 'v1d', 'v1r', 'invd', 'invr', 'dd', 'dres', 'rvd', 'rvr', 'deal', 'sales', 'owner', 'rep'] : F.camp ? ['recv', 'wait', 'name', 'pref', 'tel', ...qcols, 'st', 'cnt', 'last', 'lastAt', 'hist', 'memo', 'next', ...DEALC] : ['recv', 'wait', 'camp', 'name', 'pref', 'tel', 'st', 'cnt', 'last', 'lastAt', 'hist', 'memo', 'next', ...DEALC])}
   ${list.length > 500 ? '<div class="note">先頭500件を表示しています。絞り込んでください。</div>' : ''}</div></div>`;
   const set = (id, key, ev = 'change') => $(id).addEventListener(ev, e => { F[key] = e.target.value; renderList(); if (id === '#fq') { $('#fq').focus(); $('#fq').setSelectionRange(99, 99); } });
-  set('#fq', 'q', 'input'); set('#fowner', 'owner'); set('#ffrom', 'from'); set('#fto', 'to');
+  set('#fq', 'q', 'input'); set('#fowner', 'owner'); set('#frep', 'rep'); set('#ffrom', 'from'); set('#fto', 'to');
   $('#fsort').onchange = e => { UI.sort.k = e.target.value; renderList(); };
   $('#fapo').onchange = e => { F.apoOnly = e.target.checked; renderList(); };
   $('#ftree').onclick = () => { F.tree = F.tree === false; try { localStorage.setItem('tree' + NS, F.tree ? '1' : '0'); } catch (e) {} renderList(); };
@@ -587,10 +673,8 @@ function statusTree() {
   return [
     { k: 'all', t: '全て', d: 0, f: l => true },
     { k: 'inv', t: '無効', d: 1, f: l => !val(l) },
-      { k: 'imik', t: '見込み', d: 2, f: l => !val(l) && mikR(l) }, // 無効のうち、最終架電結果が「再架電/見込み」
     { k: 'val', t: '有効', d: 1, f: val },
     { k: 'fol', t: '追客中', d: 2, f: fol },
-      { k: 'mik', t: '見込み', d: 3, f: mik }, // 追客中のうち、最終架電結果が「再架電/見込み」
     { k: 'apo', t: 'アポ', d: 2, f: ap },
     { k: 'fng', t: '初訪NG', d: 3, f: l => ap(l) && visitNG(l) },
     { k: 'deal', t: '商談', d: 3, f: dl },
@@ -952,7 +1036,7 @@ async function openLead(id) {
   UI.sel = id; DR.result = ''; const l = D.leads.find(x => x['リードID'] === id); if (!l) return;
   DR.deal = l['商談ステータス'] || '';
   drawLead(l, null);
-  $('#drawer').classList.add('open'); $('#mask').classList.add('open');
+  $('#drawer').classList.add('open'); $('#mask').classList.add('open'); document.body.classList.add('dopen');
   const logs = await call('api_leadLogs', id);
   if (UI.sel === id) drawLead(D.leads.find(x => x['リードID'] === id), logs);
 }
@@ -964,7 +1048,7 @@ function inHours(d) {
   if (hm >= en) return fmt(new Date(d.getTime() + 864e5)).slice(0, 11) + st;
   return s;
 }
-function closeLead() { UI.sel = null; $('#drawer').classList.remove('open'); $('#mask').classList.remove('open'); }
+function closeLead() { UI.sel = null; $('#drawer').classList.remove('open'); $('#mask').classList.remove('open'); document.body.classList.remove('dopen'); }
 
 function drawLead(l, logs) {
   const R = D.master.results, cats = [...new Set(R.map(r => r.cat))];
@@ -973,7 +1057,10 @@ function drawLead(l, logs) {
   const dup = l['重複元ID'] && D.leads.find(x => x['リードID'] === l['重複元ID']);
   const sameTel = D.leads.filter(x => x !== l && x['電話番号'] && x['電話番号'].replace(/\D/g, '') === l['電話番号'].replace(/\D/g, ''));
   const inSec = !!l['アポ日時'] || !!l['商談ステータス'];
+  // 進捗表を使わない会社（アームズ以外）：アポ日時＝初回訪問日、再訪日・成約金額（＝売上）を入力する
+  const VISIT = !(D.dealRule && D.dealRule.dateField);
   const dt = (s) => s ? s.replace(' ', 'T') : '';
+  const dtl = s => { s = String(s || '').trim(); return !s ? '' : esc(s.length <= 10 ? s.slice(0, 10) + 'T00:00' : s.replace(' ', 'T').slice(0, 16)); }; // 日付だけの値は 0:00 として表示
   const nextDef = inHours(new Date(Date.now() + 3 * 3600e3)).replace(' ', 'T');
   $('#drawer').innerHTML = `
   <div class="dh">
@@ -988,8 +1075,8 @@ function drawLead(l, logs) {
   <div class="db">
     <div class="sec"><h3>アンケート回答</h3><div class="kv">${Object.entries(l._ans).map(([q, a]) => `<div>${esc(q)}</div><div><b>${esc(a)}</b></div>`).join('') || '<div class="sub">なし</div><div></div>'}<div>フォーム</div><div>${esc(l['フォーム'])}</div></div></div>
 
-    <details class="sec" ${CAMP(l['訴求'])['トークスクリプト'] ? 'open' : ''}><summary class="b" style="cursor:pointer">トークスクリプト（${esc(campName(l['訴求']))}）</summary><div style="margin-top:8px" id="dTalk">${talkView(CAMP(l['訴求']))}</div><button class="btn sm" id="dTalkEdit" style="margin-top:6px">編集</button></details>
-    <div class="sec"><h3>架電結果を記録</h3>
+    <details class="sec" ${CAMP(l['訴求'])['トークスクリプト'] && !MOB() ? 'open' : ''}><summary class="b" style="cursor:pointer">トークスクリプト（${esc(campName(l['訴求']))}）</summary><div style="margin-top:8px" id="dTalk">${talkView(CAMP(l['訴求']))}</div><button class="btn sm" id="dTalkEdit" style="margin-top:6px">編集</button></details>
+    <div class="sec" id="callSec"><h3>架電結果を記録</h3>
       <div class="rbtns">${cats.map(c => `<div class="cat">${esc(c)}</div>` + R.filter(r => r.cat === c).map(r => `<button class="rb c-${esc(c)} ${DR.result === c + '/' + r.val ? 'on' : ''}" data-r="${esc(c + '/' + r.val)}">${esc(r.val)}</button>`).join('')).join('')}</div>
       <div class="form">
         <label>架電者</label><select id="cCaller">${callers.map(c => `<option ${c === defCaller ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select>
@@ -1004,14 +1091,16 @@ function drawLead(l, logs) {
     <div class="sec" ${inSec ? '' : 'style="opacity:.75"'}><h3>商談 ${inSec ? '' : '<span class="sub sm">（アポ獲得後に入力）</span>'}</h3>
       <div class="form">
         <label>商談ステータス</label><select id="dDeal"><option value="">-</option>${D.master.deal.map(v => `<option ${DR.deal === v ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select>
-        <label>アポ日時</label><div><input type="datetime-local" id="dApo" value="${dt(l['アポ日時'])}"> <select id="dApoType"><option value="">-</option>${D.master.apoType.map(v => `<option ${l['アポ形式'] === v ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></div>
+        <label>${VISIT ? '初回訪問日' : 'アポ日時'}</label><div><input type="datetime-local" id="dApo" value="${dt(l['アポ日時'])}"> <select id="dApoType"><option value="">-</option>${D.master.apoType.map(v => `<option ${l['アポ形式'] === v ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></div>
         <label>営業担当</label><div>${(D.master.reps || []).length ? `<select id="dRep"><option value="">-</option>${[...new Set((D.master.reps || []).concat(l['営業担当'] ? [l['営業担当']] : []))].map(v => `<option ${l['営業担当'] === v ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select>` : `<input id="dRep" value="${esc(l['営業担当'] || '')}" placeholder="訪問・商談の担当">`} <span class="sub sm">選択肢は 設定 &gt; 架電者・営業担当</span></div>
-        <label>商談実施日</label><input type="date" id="dDate" value="${esc(String(l['商談実施日']).slice(0, 10))}">
+        <label>商談実施日</label>${VISIT ? `<input type="datetime-local" id="dDate" value="${dtl(l['商談実施日'])}">` : `<input type="date" id="dDate" value="${esc(String(l['商談実施日']).slice(0, 10))}">`}
+        ${VISIT ? `<label>再訪日</label><input type="datetime-local" id="dRevisit" value="${dtl(l['進捗_再訪日'])}">` : ''}
         <label>見積金額</label><input id="dQuote" inputmode="numeric" value="${esc(l['見積金額'])}" placeholder="円">
+        ${VISIT ? `<label>成約金額</label><div><input id="dSales" inputmode="numeric" value="${esc(l['売上'])}" placeholder="円（成約のとき）"> <span class="sub sm">成果分析の売上になります</span></div>` : ''}
         <label>商材</label><select id="dProd"><option value="">-</option>${D.master.product.map(v => `<option ${l['商材'] === v ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select>
         <div id="wonRow" style="display:${DR.deal === '成約' ? 'contents' : 'none'}">
           <label>成約日</label><input type="date" id="dWon" value="${esc(String(l['成約日']).slice(0, 10))}">
-          <label>売上（税抜） <span class="red">*</span></label><input id="dSales" inputmode="numeric" value="${esc(l['売上'])}" placeholder="円">
+          ${VISIT ? '' : `<label>売上（税抜） <span class="red">*</span></label><input id="dSales" inputmode="numeric" value="${esc(l['売上'])}" placeholder="円">`}
           <label>粗利</label><div><input id="dGross" inputmode="numeric" value="${esc(l['粗利'])}" placeholder="空欄＝売上×${esc(D.settings['粗利率の初期値(%)'])}%で推定"></div>
         </div>
         <div id="lostRow" style="display:${DR.deal === '失注' ? 'contents' : 'none'}"><label>失注理由 <span class="red">*</span></label><select id="dLost"><option value="">選択</option>${D.master.lost.map(v => `<option ${l['失注理由'] === v ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></div>
@@ -1020,15 +1109,20 @@ function drawLead(l, logs) {
       <p><button class="btn pri" id="dSave">商談を保存</button></p>
     </div>
 
-    <div class="sec"><h3>担当・メモ</h3>
-      <div class="form"><label>担当者</label><div><select id="uOwner"><option value="">-</option>${callers.map(c => `<option ${l['担当者'] === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select> <button class="btn sm" id="uSave">変更</button></div></div>
+    <div class="sec"><h3>架電担当・メモ</h3>
+      <div class="form"><label>架電担当</label><div><select id="uOwner"><option value="">-</option>${callers.map(c => `<option ${l['担当者'] === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select> <button class="btn sm" id="uSave">変更</button></div></div>
       ${l['メモ'] ? `<div class="memo" style="margin-top:8px">${esc(l['メモ'])}</div>` : ''}
       ${l['進捗メモ'] ? `<div class="sub sm" style="margin-top:8px">訪問・商談の記録（進捗表より）</div><div class="memo">${esc(l['進捗メモ'])}</div>` : ''}
     </div>
 
     <div class="sec"><h3>対応履歴</h3>${logs == null ? '<div class="sub">読み込み中…</div>' : logs.length ? `<div class="tl">${logs.slice().reverse().map(g => `<div class="it ${esc(g['種別'])}"><b>${md(g['日時'])}</b> ${esc(g['対応者'])}　<span class="b">${esc(g['大分類'])}${g['小分類'] ? '・' + esc(g['小分類']) : ''}</span>${g['次回架電予定'] ? ` <span class="sub">→ 次回 ${md(g['次回架電予定'])}</span>` : ''}${g['メモ'] ? `<div class="sub">${esc(g['メモ'])}</div>` : ''}</div>`).join('')}</div>` : '<div class="sub">まだ対応履歴はありません</div>'}
     <div class="sub sm" style="margin-top:8px">${l['更新日時'] ? `最終更新 ${md(l['更新日時'])} ${esc(l['更新者'])}` : ''}</div></div>
-  </div>`;
+  </div>
+  <div class="dfoot">${l['電話番号'] ? `<a href="tel:${esc(l['電話番号'])}">📞 電話する</a>` : ''}<button id="toCall">結果を記録 ↓</button></div>`;
+  // 下のボタン：結果を選ぶ前＝記録欄へ移動、選んだ後＝その結果で保存
+  const footBtn = () => { $('#toCall').textContent = DR.result ? `「${DR.result.split('/')[1]}」で保存` : '結果を記録 ↓'; };
+  footBtn();
+  $('#toCall').onclick = () => DR.result ? $('#cSave').click() : $('#callSec').scrollIntoView({ behavior: 'smooth', block: 'start' });
   $('#dclose').onclick = closeLead;
   $('#dTalkEdit').onclick = () => { $('#dTalkEdit').style.display = 'none'; editTalk(l['訴求'], $('#dTalk'), () => { drawLead(D.leads.find(x => x['リードID'] === l['リードID']), logs); if (UI.page === 'list') renderList(); }); };
   document.querySelectorAll('[data-open]').forEach(a => a.onclick = e => { e.preventDefault(); openLead(a.dataset.open); });
@@ -1037,6 +1131,7 @@ function drawLead(l, logs) {
     document.querySelectorAll('.rb').forEach(x => x.classList.toggle('on', x === b));
     $('#nextRow').style.display = DR.result.startsWith('再架電') ? 'contents' : 'none';
     $('#apoRow').style.display = DR.result.startsWith('アポ') ? 'contents' : 'none';
+    footBtn();
   });
   document.querySelectorAll('[data-nx]').forEach(b => b.onclick = () => {
     const h = +b.dataset.nx; let d = new Date(Date.now() + h * 3600e3);
@@ -1049,7 +1144,11 @@ function drawLead(l, logs) {
     try { localStorage.setItem('caller' + NS, $('#cCaller').value); } catch (e) {}
     saveAnd('api_logCall', l, { result: DR.result, caller: $('#cCaller').value, at: $('#cAt').value.replace('T', ' '), next: $('#cNext').value.replace('T', ' '), apoAt: $('#cApo').value.replace('T', ' '), apoType: $('#cApoType').value, memo: $('#cMemo').value }, '架電結果を保存しました');
   };
-  $('#dSave').onclick = () => saveAnd('api_saveDeal', l, { deal: $('#dDeal').value, apoAt: $('#dApo').value.replace('T', ' '), apoType: $('#dApoType').value, date: $('#dDate').value, quote: $('#dQuote').value, product: $('#dProd').value, wonDate: $('#dWon').value, sales: $('#dSales').value, gross: $('#dGross').value, lostReason: $('#dLost').value, sales_rep: $('#dRep').value, memo: $('#dMemo').value }, '商談を保存しました');
+  $('#dSave').onclick = () => {
+    if (VISIT && num($('#dSales').value) && $('#dDeal').value !== '成約') return toast('成約金額を入れるときは、商談ステータスを「成約」にしてください');
+    if (VISIT && $('#dDeal').value === '成約' && !num($('#dSales').value)) return toast('成約の場合は成約金額を入力してください');
+    saveAnd('api_saveDeal', l, Object.assign({ deal: $('#dDeal').value, apoAt: $('#dApo').value.replace('T', ' '), apoType: $('#dApoType').value, date: $('#dDate').value.replace('T', ' '), quote: $('#dQuote').value, product: $('#dProd').value, wonDate: $('#dWon').value || (VISIT && $('#dDeal').value === '成約' ? $('#dDate').value.slice(0, 10) : ''), sales: $('#dSales').value, gross: $('#dGross').value, lostReason: $('#dLost').value, sales_rep: $('#dRep').value, memo: $('#dMemo').value }, VISIT ? { revisit: $('#dRevisit').value.replace('T', ' ') } : {}), '商談を保存しました');
+  };
   $('#uSave').onclick = () => saveAnd('api_updateLead', l, { owner: $('#uOwner').value }, '担当者を変更しました');
 }
 
@@ -1061,7 +1160,8 @@ async function saveAnd(fn, l, p, msg) {
     D.leads[i] = nl;
     const pre = D.logs.length;
     if (fn === 'api_logCall') D.logs.push([fmt(new Date()), nl['リードID'], '架電', p.caller, p.result.split('/')[0], p.result.split('/')[1]]);
-    prep(); toast(msg); render(); openLead(nl['リードID']);
+    prep(); toast(msg); render();
+    if (MOB() && fn === 'api_logCall') closeLead(); else openLead(nl['リードID']); // スマホは記録したら一覧に戻る（次のリードへ）
   } catch (e) { document.querySelectorAll('#drawer .btn.pri').forEach(b => b.disabled = false); }
 }
 
@@ -1071,6 +1171,8 @@ document.addEventListener('click', e => {
   const al = e.target.closest('[data-al]'); if (al) { UI.alert = UI.alert === al.dataset.al ? 'all' : al.dataset.al; render(); return; }
   const mc = e.target.closest('.memoCell'); if (mc) { editMemo(mc); return; }
   if (e.target.closest('textarea.memoEdit, .memoBtns')) return;
+  const mt = e.target.closest('.mtel'); if (mt) { openLead(mt.dataset.tel); return; } // 発信はリンクのまま（止めない）
+  const mc2 = e.target.closest('.mcard[data-id]'); if (mc2) { openLead(mc2.dataset.id); return; }
   const tr = e.target.closest('tr.click'); if (tr) { openLead(tr.dataset.id); return; }
   const ct = e.target.closest('.ctab[data-camp]'); if (ct) { UI.list.camp = ct.dataset.camp; UI.list.st = ''; renderList(); return; }
   const ch = e.target.closest('.chip[data-st]'); if (ch) { UI.list.st = ch.dataset.st; renderList(); return; }
