@@ -418,7 +418,7 @@ function mCards(list, why) {
     const nx = toD(l['次回架電予定']), unt = l['ステータス'] === '未対応';
     const r2 = [campName(l['訴求']), l['都道府県'], num(l['架電回数']) ? `架電${num(l['架電回数'])}回` : '', String(l['最終架電結果'] || '').replace(/^[^/]*\//, '')].filter(Boolean).map(esc).join('・');
     const r3 = [unt ? `<span class="${l._wait >= num(D.settings['初回架電の警告(分)']) ? 'red b' : l._wait >= num(D.settings['初回架電の目標(分)']) ? 'yel b' : ''}">取得 ${md(l['受信日時'])}（${l._wait <= 0 ? '受付時間前' : ago(l._wait) + '経過'}）</span>` : `取得 ${md(l['受信日時'])}`,
-      nx ? `<span class="${nx < Date.now() ? 'red b' : ''}">次回 ${md(l['次回架電予定'])}</span>` : '', l['アポ日時'] ? `アポ ${md(l['アポ日時'])}` : '', l['メモ'] ? esc(String(l['メモ']).split('\n')[0]) : ''].filter(Boolean).join('　');
+      nx ? `<span class="${nx < Date.now() ? 'red b' : ''}">次回 ${md(l['次回架電予定'])}</span>` : '', l['アポ日時'] ? `${isVisit() ? '訪問' : 'アポ'} ${md(l['アポ日時'])}` : '', l['メモ'] ? esc(String(l['メモ']).split('\n')[0]) : ''].filter(Boolean).join('　');
     return `<div class="mcard ${rowCls(l)}" data-id="${l['リードID']}"><div class="mc">
       ${why && l._why ? `<div class="why ${l._c === 'red' ? 'red' : l._c === 'yel' ? 'yel' : ''}">${esc(l._why)}</div>` : ''}
       <div class="r1"><b>${esc(l['氏名'])}</b>${stBadge(l['ステータス'])}${l._notHouse ? '<span class="nh">戸建て以外</span>' : ''}${l._areaOut ? '<span class="nh">エリア外</span>' : ''}</div>
@@ -426,6 +426,8 @@ function mCards(list, why) {
       ${l['電話番号'] ? `<a class="mtel" href="tel:${esc(l['電話番号'])}" data-tel="${l['リードID']}" aria-label="電話する">📞</a>` : ''}</div>`;
   }).join('')}</div>`;
 }
+// 進捗表を使わない会社（アームズ以外）：アポ日時＝初回訪問日、再訪日・成約金額（＝売上）を使う
+const isVisit = () => !(D && D.dealRule && D.dealRule.dateField);
 function leadRows(list, cols) {
   if (!list.length) return `<div class="empty">該当するリードはありません</div>`;
   if (MOB()) return mCards(list);
@@ -443,18 +445,20 @@ function leadRows(list, cols) {
     hist: ['架電履歴', l => l._hist.length ? `<div class="hist">${l._hist.map(g => `<div title="${esc(g[3] || '')}">${md(String(g[0]))} ${esc(g[5] || g[4])}</div>`).join('')}</div>` : ''],
     memo: ['備考メモ', l => `<div class="memoCell" data-memo="${l['リードID']}" title="クリックして入力">${l['メモ'] ? esc(l['メモ']) : '<span class="sub">＋ 入力</span>'}</div>`],
     next: ['次回架電', l => { const d = toD(l['次回架電予定']); return d ? `<span class="${d < Date.now() ? 'red b' : ''}">${md(l['次回架電予定'])}</span>` : ''; }],
-    apo: ['アポ日時', l => md(l['アポ日時'])],
+    apo: [isVisit() ? '初回訪問日' : 'アポ日時', l => md(l['アポ日時'])],
+    ddate: ['商談実施日', l => md(String(l['商談実施日'] || '').slice(0, 10))],
+    quote: ['見積金額', l => l['見積金額'] !== '' && l['見積金額'] != null ? yen(num(l['見積金額'])) : ''],
     deal: ['商談', l => esc(l['商談ステータス'])],
     dres: ['商談結果', l => `<span class="sm">${esc(l['進捗_商談結果'] || '')}</span>`], // 進捗表の商談結果
     v1d: ['初訪日', l => md(String(l['進捗_初訪日'] || '').slice(0, 10))],
     v1r: ['初訪結果', l => `<span class="sm">${esc(l['進捗_訪問結果'] || '')}</span>`],
     invd: ['調査日', l => md(String(l['進捗_調査日'] || '').slice(0, 10))],
     invr: ['調査結果', l => `<span class="sm">${esc(l['進捗_調査結果'] || '')}</span>`],
-    rvd: ['商談再訪日', l => md(String(l['進捗_再訪日'] || '').slice(0, 10))],
+    rvd: [isVisit() ? '再訪日' : '商談再訪日', l => md(String(l['進捗_再訪日'] || '').slice(0, 10))],
     rvr: ['商談再訪結果', l => `<span class="sm">${esc(l['進捗_再訪結果'] || '')}</span>`],
     dd: ['商談日', l => md(String(l['進捗_商談日'] || '').slice(0, 10))],
     owner: ['担当', l => esc(l['担当者'])],
-    sales: ['売上', l => l._won ? yen(l._sales) : ''],
+    sales: [isVisit() ? '成約金額' : '売上', l => l._won ? yen(l._sales) : ''],
   };
   cols.filter(c => c.startsWith('q:')).forEach(c => { const q = c.slice(2); C[c] = [`<span title="${esc(q)}">${esc(shortQ(q))}</span>`, l => `<span class="sm">${esc(l._ans[q] || '')}</span>`]; });
   return `<div class="tblwrap"><table><thead><tr>${cols.map(c => `<th>${C[c][0]}</th>`).join('')}</tr></thead><tbody>${list.map(l => `<tr class="click ${rowCls(l)}" data-id="${l['リードID']}">${cols.map(c => `<td${c === 'camp' ? ' class="cmp"' : ''}>${C[c][1](l)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
@@ -465,7 +469,16 @@ function progRows(list, showCamp) {
   if (!list.length) return `<div class="empty">該当するリードはありません</div>`;
   const lead = [['リード取得日', l => md(l['受信日時'])], ['氏名', l => `<b>${esc(l['氏名'])}</b>${l._notHouse ? '<span class="nh">戸建て以外</span>' : ''}${l._areaOut ? '<span class="nh">エリア外</span>' : ''}`]]
     .concat(showCamp ? [['訴求', l => `<span class="sm">${esc(campName(l['訴求']))}</span>`]] : []).concat([['電話番号', l => esc(l['電話番号'])], ['ステータス', l => stBadge(l['ステータス'])]]);
-  const deal = [
+  const deal = isVisit() ? [
+    ['商談', l => l['商談ステータス'] ? `<span class="dst ${esc(l['商談ステータス'])}">${esc(l['商談ステータス'])}</span>` : (l._apo ? '' : '<span class="sub sm">―</span>')],
+    ['初回訪問日', l => md(String(l['アポ日時'] || ''))],
+    ['商談実施日', l => md(String(l['商談実施日'] || '').slice(0, 10))],
+    ['再訪日', l => md(String(l['進捗_再訪日'] || '').slice(0, 10))],
+    ['営業担当', l => esc(l['営業担当'])],
+    ['商材', l => `<span class="sm">${esc(l['商材'])}</span>`],
+    ['見積金額', l => l['見積金額'] !== '' && l['見積金額'] != null ? yen(num(l['見積金額'])) : ''],
+    ['成約金額', l => l._won ? `<b>${yen(l._sales)}</b>` : ''],
+  ] : [
     ['商談', l => l['商談ステータス'] ? `<span class="dst ${esc(l['商談ステータス'])}">${esc(l['商談ステータス'])}</span>` : (l._apo ? '' : '<span class="sub sm">―</span>')],
   ].concat(D.leads.some(l => l['進捗_商談結果']) ? [['商談結果', l => `<span class="sm">${esc(l['進捗_商談結果'] || '')}</span>`]] : []).concat([
     ['訪問・商談日', l => md(String(l['アポ日時'] || l['商談実施日'] || ''))],
@@ -539,6 +552,8 @@ function renderList() {
     && (!F.q || (l['氏名'] + l['電話番号'] + l['都道府県'] + l['メモ']).replace(/[-\s]/g, '').includes(F.q.replace(/[-\s]/g, ''))));
   const cnt = {}; base.forEach(l => cnt[l['ステータス']] = (cnt[l['ステータス']] || 0) + 1);
   const DRES = L.some(l => l['進捗_商談結果']) ? ['dres'] : []; // 進捗表を使う会社だけ「商談結果」列を出す
+  // 商談の列：アームズ以外は商談欄と同じ並び（商談・初回訪問日・商談実施日・再訪日・見積金額・成約金額）
+  const DEALC = isVisit() ? ['deal', 'apo', 'ddate', 'rvd', 'quote', 'sales'] : ['apo', 'deal', ...DRES, 'sales'];
   const TREE = statusTree(), node = TREE.find(n => n.k === F.st);
   if (F.st && !node) F.st = '';
   // 階層で「商談」以下（成約・失注・検討）を選んだときは、架電の列の代わりに進捗表の初訪〜商談の列を出す
@@ -571,7 +586,7 @@ function renderList() {
     <select id="fowner"><option value="">すべての担当</option>${owners.map(o => `<option ${F.owner === o ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>
     リード取得月 <select id="ffrom"><option value="">指定なし</option>${mons.map(m => `<option ${F.from === m ? 'selected' : ''}>${m}</option>`).join('')}</select>〜
     <select id="fto"><option value="">指定なし</option>${mons.map(m => `<option ${F.to === m ? 'selected' : ''}>${m}</option>`).join('')}</select>
-    <select id="fsort">${[['受信日時', 'リード取得日'], ['最終架電日時', '最終架電日時'], ['次回架電予定', '次回架電予定'], ['アポ日時', 'アポ日時'], ['更新日時', '更新日時']].map(([v, t]) => `<option value="${v}" ${k === v ? 'selected' : ''}>${t}順</option>`).join('')}</select>
+    <select id="fsort">${[['受信日時', 'リード取得日'], ['最終架電日時', '最終架電日時'], ['次回架電予定', '次回架電予定'], ['アポ日時', isVisit() ? '初回訪問日' : 'アポ日時'], ['更新日時', '更新日時']].map(([v, t]) => `<option value="${v}" ${k === v ? 'selected' : ''}>${t}順</option>`).join('')}</select>
     <button class="btn sm" id="fdir">${d < 0 ? '新しい順' : '古い順'}</button>
 <button class="btn sm" id="ftree" title="左のステータス階層の表示を切り替え">${F.tree === false ? '階層を表示' : '階層を隠す'}</button>
     <label class="sm" style="display:inline-flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="fapo" ${F.apoOnly ? 'checked' : ''}>アポ取得したリードだけ</label>
@@ -579,7 +594,7 @@ function renderList() {
     <span class="sub sm">${list.length}件</span>
   </div>
   <div class="lwrap">${F.tree === false ? '' : `<div class="stree">${TREE.map(n => `<span class="chip ${(F.st || 'all') === n.k ? 'on' : ''}" data-st="${n.k === 'all' ? '' : n.k}" style="margin-left:${n.d * 12}px">${n.d ? '<span class="sub">∟</span> ' : ''}${esc(n.t)} <b>${base.filter(n.f).length}</b></span>`).join('')}</div>`}
-  <div class="lmain">${F.view === 'prog' ? progRows(list.slice(0, 500), !F.camp) : leadRows(list.slice(0, 500), DCOLS ? ['recv', 'wait', ...(F.camp ? [] : ['camp']), 'name', 'pref', 'tel', ...qcols, 'memo', 'v1d', 'v1r', 'invd', 'invr', 'dd', 'dres', 'rvd', 'rvr', 'deal', 'sales', 'owner'] : F.camp ? ['recv', 'wait', 'name', 'pref', 'tel', ...qcols, 'st', 'cnt', 'last', 'lastAt', 'hist', 'memo', 'next', 'apo', 'deal', ...DRES, 'sales', 'owner'] : ['recv', 'wait', 'camp', 'name', 'pref', 'tel', 'st', 'cnt', 'last', 'lastAt', 'hist', 'memo', 'next', 'apo', 'deal', ...DRES, 'sales', 'owner'])}
+  <div class="lmain">${F.view === 'prog' ? progRows(list.slice(0, 500), !F.camp) : leadRows(list.slice(0, 500), DCOLS ? ['recv', 'wait', ...(F.camp ? [] : ['camp']), 'name', 'pref', 'tel', ...qcols, 'memo', 'v1d', 'v1r', 'invd', 'invr', 'dd', 'dres', 'rvd', 'rvr', 'deal', 'sales', 'owner'] : F.camp ? ['recv', 'wait', 'name', 'pref', 'tel', ...qcols, 'st', 'cnt', 'last', 'lastAt', 'hist', 'memo', 'next', ...DEALC, 'owner'] : ['recv', 'wait', 'camp', 'name', 'pref', 'tel', 'st', 'cnt', 'last', 'lastAt', 'hist', 'memo', 'next', ...DEALC, 'owner'])}
   ${list.length > 500 ? '<div class="note">先頭500件を表示しています。絞り込んでください。</div>' : ''}</div></div>`;
   const set = (id, key, ev = 'change') => $(id).addEventListener(ev, e => { F[key] = e.target.value; renderList(); if (id === '#fq') { $('#fq').focus(); $('#fq').setSelectionRange(99, 99); } });
   set('#fq', 'q', 'input'); set('#fowner', 'owner'); set('#ffrom', 'from'); set('#fto', 'to');
