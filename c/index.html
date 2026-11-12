@@ -210,7 +210,7 @@ const API_URL = 'https://script.google.com/macros/s/AKfycbyLy89gG6bH684i7R7ByHj8
 const NS = STATIC ? '_' + API_URL.replace(/\/exec$/, '').slice(-16) : '';
 const TK = { get: () => { try { return localStorage.getItem('lm_token' + NS) || ''; } catch (e) { return ''; } }, set: v => { try { v ? localStorage.setItem('lm_token' + NS, v) : localStorage.removeItem('lm_token' + NS); } catch (e) {} } };
 let D = null;               // api_bootstrap の戻り
-const UI = { page: 'home', alert: 'all', list: { q: '', st: '', camp: '', owner: '', from: '', to: '', need: false, view: 'list', apoOnly: false, info: false, tree: (() => { try { return localStorage.getItem('tree' + NS) !== '0'; } catch (e) { return true; } })() }, ana: { from: '', to: '', camp: '', media: '', basis: 'event', live: false }, sel: null, sort: { k: '受信日時', d: -1 } };
+const UI = { page: 'home', alert: 'all', list: { q: '', st: '', camp: '', owner: '', rep: '', from: '', to: '', need: false, view: 'list', apoOnly: false, info: false, tree: (() => { try { return localStorage.getItem('tree' + NS) !== '0'; } catch (e) { return true; } })() }, ana: { from: '', to: '', camp: '', media: '', basis: 'event', live: false }, sel: null, sort: { k: '受信日時', d: -1 } };
 const $ = s => document.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const yen = n => (n == null || !isFinite(n)) ? '-' : '¥' + Math.round(n).toLocaleString();
@@ -316,7 +316,10 @@ async function load(sync) {
   if (D.sync && D.sync.added) toast(`新しいリードを${D.sync.added}件取り込みました`);
   render();
 }
+// テスト送信（氏名に「テスト」「test」、または 080-0000-0000・000… のようなダミー電話番号）は、集計にも一覧にも入れない（今はアームズ＝進捗表を使う会社だけ）
+const isTestLead = l => { const nm = String(l['氏名'] || ''), tel = String(l['電話番号'] || '').replace(/\D/g, ''); return /テスト|test/i.test(nm) || /^0\d{2}0{8}$/.test(tel) || /^0{10,}$/.test(tel); };
 function prep() {
+  if (D.dealRule && D.dealRule.dateField) D.leads = D.leads.filter(l => !isTestLead(l));
   const S = D.settings;
   const [oh, om] = String(S['架電可能時間_開始'] || '09:00').split(':').map(Number);
   const [ch, cm] = String(S['架電可能時間_終了'] || '20:00').split(':').map(Number);
@@ -446,7 +449,7 @@ function leadRows(list, cols) {
     memo: ['備考メモ', l => `<div class="memoCell" data-memo="${l['リードID']}" title="クリックして入力">${l['メモ'] ? esc(l['メモ']) : '<span class="sub">＋ 入力</span>'}</div>`],
     next: ['次回架電', l => { const d = toD(l['次回架電予定']); return d ? `<span class="${d < Date.now() ? 'red b' : ''}">${md(l['次回架電予定'])}</span>` : ''; }],
     apo: [isVisit() ? '初回訪問日' : 'アポ日時', l => md(l['アポ日時'])],
-    ddate: ['商談実施日', l => md(String(l['商談実施日'] || '').slice(0, 10))],
+    ddate: ['商談実施日', l => md(String(l['商談実施日'] || '').slice(0, 16))],
     quote: ['見積金額', l => l['見積金額'] !== '' && l['見積金額'] != null ? yen(num(l['見積金額'])) : ''],
     deal: ['商談', l => esc(l['商談ステータス'])],
     dres: ['商談結果', l => `<span class="sm">${esc(l['進捗_商談結果'] || '')}</span>`], // 進捗表の商談結果
@@ -454,10 +457,11 @@ function leadRows(list, cols) {
     v1r: ['初訪結果', l => `<span class="sm">${esc(l['進捗_訪問結果'] || '')}</span>`],
     invd: ['調査日', l => md(String(l['進捗_調査日'] || '').slice(0, 10))],
     invr: ['調査結果', l => `<span class="sm">${esc(l['進捗_調査結果'] || '')}</span>`],
-    rvd: [isVisit() ? '再訪日' : '商談再訪日', l => md(String(l['進捗_再訪日'] || '').slice(0, 10))],
+    rvd: [isVisit() ? '再訪日' : '商談再訪日', l => md(String(l['進捗_再訪日'] || '').slice(0, 16))],
     rvr: ['商談再訪結果', l => `<span class="sm">${esc(l['進捗_再訪結果'] || '')}</span>`],
     dd: ['商談日', l => md(String(l['進捗_商談日'] || '').slice(0, 10))],
-    owner: ['担当', l => esc(l['担当者'])],
+    owner: ['架電担当', l => esc(l['担当者'])],
+    rep: ['営業担当', l => esc(l['営業担当'] || '')],
     sales: [isVisit() ? '成約金額' : '売上', l => l._won ? yen(l._sales) : ''],
   };
   cols.filter(c => c.startsWith('q:')).forEach(c => { const q = c.slice(2); C[c] = [`<span title="${esc(q)}">${esc(shortQ(q))}</span>`, l => `<span class="sm">${esc(l._ans[q] || '')}</span>`]; });
@@ -472,8 +476,8 @@ function progRows(list, showCamp) {
   const deal = isVisit() ? [
     ['商談', l => l['商談ステータス'] ? `<span class="dst ${esc(l['商談ステータス'])}">${esc(l['商談ステータス'])}</span>` : (l._apo ? '' : '<span class="sub sm">―</span>')],
     ['初回訪問日', l => md(String(l['アポ日時'] || ''))],
-    ['商談実施日', l => md(String(l['商談実施日'] || '').slice(0, 10))],
-    ['再訪日', l => md(String(l['進捗_再訪日'] || '').slice(0, 10))],
+    ['商談実施日', l => md(String(l['商談実施日'] || '').slice(0, 16))],
+    ['再訪日', l => md(String(l['進捗_再訪日'] || '').slice(0, 16))],
     ['営業担当', l => esc(l['営業担当'])],
     ['商材', l => `<span class="sm">${esc(l['商材'])}</span>`],
     ['見積金額', l => l['見積金額'] !== '' && l['見積金額'] != null ? yen(num(l['見積金額'])) : ''],
@@ -491,7 +495,7 @@ function progRows(list, showCamp) {
     ['架電', l => num(l['架電回数']) || ''],
     ['最終結果', l => `<span class="sm">${esc(String(l['最終架電結果']).replace('/', '・'))}</span>`],
     ['最終架電日時', l => md(String(l['最終架電日時']))],
-    ['架電者', l => esc(l['担当者'])],
+    ['架電担当', l => esc(l['担当者'])],
     ['アポ取得日', l => l._apo ? `<b>${md(String(l['アポ獲得日'] || ''))}</b>` : ''],
     ['架電履歴', l => l._hist.length ? `<div class="hist">${l._hist.map(g => `<div>${md(String(g[0]))} ${esc(g[5] || g[4])}${g[3] ? `<span class="sub">（${esc(g[3])}）</span>` : ''}</div>`).join('')}</div>` : ''],
     ['備考メモ', l => `<div class="memoCell" data-memo="${l['リードID']}" title="クリックして入力">${l['メモ'] ? esc(l['メモ']) : '<span class="sub">＋ 入力</span>'}</div>`],
@@ -537,7 +541,7 @@ function renderHome(A) {
   <div class="grid alerts">${A.map(a => `<div class="card al ${a.c} ${a.list.length ? '' : 'zero'} ${UI.alert === a.k ? 'on' : ''}" data-al="${a.k}"><div class="t">${a.t}</div><div class="n">${a.list.length}</div><div class="d">${a.d}</div></div>`).join('')}</div>
   <h2>${sel ? esc(sel.t) + ' の一覧 <button class="btn sm" data-al="all">すべての要対応に戻す</button>' : '要対応のリード（未架電・期限切れ・止まっている追客・結果未入力・検討中フォロー）'}</h2>
   ${sel ? leadRows(list, sel.k === 'apo' || sel.k === 'nores' ? ['apo', 'name', 'tel', 'camp', 'deal', 'owner', 'recv'] : ['recv', 'wait', 'name', 'tel', 'pref', 'camp', 'st', 'cnt', 'last', 'next', 'owner'])
-      : list.length && MOB() ? mCards(list, true) : list.length ? `<div class="tblwrap"><table><thead><tr><th>理由</th><th>リード取得日</th><th>経過</th><th>氏名</th><th>電話番号</th><th>訴求</th><th>ステータス</th><th>架電</th><th>次回架電</th><th>アポ日時</th><th>担当</th></tr></thead><tbody>${list.map(l => `<tr class="click" data-id="${l['リードID']}"><td><span class="${l._c === 'red' ? 'red' : l._c === 'yel' ? 'yel' : ''} b sm">${esc(l._why)}</span></td><td>${md(l['受信日時'])}</td><td>${l['ステータス'] === '未対応' ? ago(Math.max(0, l._wait)) : ''}</td><td><b>${esc(l['氏名'])}</b></td><td>${esc(l['電話番号'])}</td><td class="sm">${esc(campName(l['訴求']))}</td><td>${stBadge(l['ステータス'])}</td><td>${num(l['架電回数']) || ''}</td><td>${md(l['次回架電予定'])}</td><td>${md(l['アポ日時'])}</td><td>${esc(l['担当者'])}</td></tr>`).join('')}</tbody></table></div>`
+      : list.length && MOB() ? mCards(list, true) : list.length ? `<div class="tblwrap"><table><thead><tr><th>理由</th><th>リード取得日</th><th>経過</th><th>氏名</th><th>電話番号</th><th>訴求</th><th>ステータス</th><th>架電</th><th>次回架電</th><th>${isVisit() ? '初回訪問日' : 'アポ日時'}</th><th>架電担当</th></tr></thead><tbody>${list.map(l => `<tr class="click" data-id="${l['リードID']}"><td><span class="${l._c === 'red' ? 'red' : l._c === 'yel' ? 'yel' : ''} b sm">${esc(l._why)}</span></td><td>${md(l['受信日時'])}</td><td>${l['ステータス'] === '未対応' ? ago(Math.max(0, l._wait)) : ''}</td><td><b>${esc(l['氏名'])}</b></td><td>${esc(l['電話番号'])}</td><td class="sm">${esc(campName(l['訴求']))}</td><td>${stBadge(l['ステータス'])}</td><td>${num(l['架電回数']) || ''}</td><td>${md(l['次回架電予定'])}</td><td>${md(l['アポ日時'])}</td><td>${esc(l['担当者'])}</td></tr>`).join('')}</tbody></table></div>`
       : '<div class="card empty">要対応のリードはありません 🎉</div>'}`;
 }
 
@@ -545,15 +549,17 @@ function renderHome(A) {
 function renderList() {
   const F = UI.list, L = D.leads;
   const owners = [...new Set(L.map(l => l['担当者']).filter(Boolean))].sort();
+  const reps = [...new Set(L.map(l => l['営業担当']).filter(Boolean))].sort();
+  if (F.rep && !reps.includes(F.rep)) F.rep = '';
   const camps = D.campaigns.slice().sort((a, b) => num(a['並び順']) - num(b['並び順']));
   if (F.camp && !camps.some(c => c['訴求'] === F.camp)) F.camp = '';
   const mons = [...new Set(L.map(l => l._ym))].sort().reverse();
-  const base = L.filter(l => (!F.camp || l['訴求'] === F.camp) && (!F.owner || l['担当者'] === F.owner) && (!F.from || l._ym >= F.from) && (!F.to || l._ym <= F.to)
+  const base = L.filter(l => (!F.camp || l['訴求'] === F.camp) && (!F.owner || l['担当者'] === F.owner) && (!F.rep || l['営業担当'] === F.rep) && (!F.from || l._ym >= F.from) && (!F.to || l._ym <= F.to)
     && (!F.q || (l['氏名'] + l['電話番号'] + l['都道府県'] + l['メモ']).replace(/[-\s]/g, '').includes(F.q.replace(/[-\s]/g, ''))));
   const cnt = {}; base.forEach(l => cnt[l['ステータス']] = (cnt[l['ステータス']] || 0) + 1);
   const DRES = L.some(l => l['進捗_商談結果']) ? ['dres'] : []; // 進捗表を使う会社だけ「商談結果」列を出す
   // 商談の列：アームズ以外は商談欄と同じ並び（商談・初回訪問日・商談実施日・再訪日・見積金額・成約金額）
-  const DEALC = isVisit() ? ['deal', 'apo', 'ddate', 'rvd', 'quote', 'sales'] : ['apo', 'deal', ...DRES, 'sales'];
+  const DEALC = isVisit() ? ['owner', 'deal', 'rep', 'apo', 'ddate', 'rvd', 'quote', 'sales'] : ['owner', 'apo', 'deal', 'rep', ...DRES, 'sales'];
   const TREE = statusTree(), node = TREE.find(n => n.k === F.st);
   if (F.st && !node) F.st = '';
   // 階層で「商談」以下（成約・失注・検討）を選んだときは、架電の列の代わりに進捗表の初訪〜商談の列を出す
@@ -583,7 +589,8 @@ function renderList() {
   $('#p-list').innerHTML = `${tabs}${head}
   <div class="filters">
     <input id="fq" placeholder="氏名・電話番号・メモで検索" value="${esc(F.q)}" style="width:240px">
-    <select id="fowner"><option value="">すべての担当</option>${owners.map(o => `<option ${F.owner === o ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>
+    <select id="fowner"><option value="">すべての架電担当</option>${owners.map(o => `<option ${F.owner === o ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>
+    <select id="frep"><option value="">すべての営業担当</option>${reps.map(o => `<option ${F.rep === o ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>
     リード取得月 <select id="ffrom"><option value="">指定なし</option>${mons.map(m => `<option ${F.from === m ? 'selected' : ''}>${m}</option>`).join('')}</select>〜
     <select id="fto"><option value="">指定なし</option>${mons.map(m => `<option ${F.to === m ? 'selected' : ''}>${m}</option>`).join('')}</select>
     <select id="fsort">${[['受信日時', 'リード取得日'], ['最終架電日時', '最終架電日時'], ['次回架電予定', '次回架電予定'], ['アポ日時', isVisit() ? '初回訪問日' : 'アポ日時'], ['更新日時', '更新日時']].map(([v, t]) => `<option value="${v}" ${k === v ? 'selected' : ''}>${t}順</option>`).join('')}</select>
@@ -594,10 +601,10 @@ function renderList() {
     <span class="sub sm">${list.length}件</span>
   </div>
   <div class="lwrap">${F.tree === false ? '' : `<div class="stree">${TREE.map(n => `<span class="chip ${(F.st || 'all') === n.k ? 'on' : ''}" data-st="${n.k === 'all' ? '' : n.k}" style="margin-left:${n.d * 12}px">${n.d ? '<span class="sub">∟</span> ' : ''}${esc(n.t)} <b>${base.filter(n.f).length}</b></span>`).join('')}</div>`}
-  <div class="lmain">${F.view === 'prog' ? progRows(list.slice(0, 500), !F.camp) : leadRows(list.slice(0, 500), DCOLS ? ['recv', 'wait', ...(F.camp ? [] : ['camp']), 'name', 'pref', 'tel', ...qcols, 'memo', 'v1d', 'v1r', 'invd', 'invr', 'dd', 'dres', 'rvd', 'rvr', 'deal', 'sales', 'owner'] : F.camp ? ['recv', 'wait', 'name', 'pref', 'tel', ...qcols, 'st', 'cnt', 'last', 'lastAt', 'hist', 'memo', 'next', ...DEALC, 'owner'] : ['recv', 'wait', 'camp', 'name', 'pref', 'tel', 'st', 'cnt', 'last', 'lastAt', 'hist', 'memo', 'next', ...DEALC, 'owner'])}
+  <div class="lmain">${F.view === 'prog' ? progRows(list.slice(0, 500), !F.camp) : leadRows(list.slice(0, 500), DCOLS ? ['recv', 'wait', ...(F.camp ? [] : ['camp']), 'name', 'pref', 'tel', ...qcols, 'memo', 'v1d', 'v1r', 'invd', 'invr', 'dd', 'dres', 'rvd', 'rvr', 'deal', 'sales', 'owner', 'rep'] : F.camp ? ['recv', 'wait', 'name', 'pref', 'tel', ...qcols, 'st', 'cnt', 'last', 'lastAt', 'hist', 'memo', 'next', ...DEALC] : ['recv', 'wait', 'camp', 'name', 'pref', 'tel', 'st', 'cnt', 'last', 'lastAt', 'hist', 'memo', 'next', ...DEALC])}
   ${list.length > 500 ? '<div class="note">先頭500件を表示しています。絞り込んでください。</div>' : ''}</div></div>`;
   const set = (id, key, ev = 'change') => $(id).addEventListener(ev, e => { F[key] = e.target.value; renderList(); if (id === '#fq') { $('#fq').focus(); $('#fq').setSelectionRange(99, 99); } });
-  set('#fq', 'q', 'input'); set('#fowner', 'owner'); set('#ffrom', 'from'); set('#fto', 'to');
+  set('#fq', 'q', 'input'); set('#fowner', 'owner'); set('#frep', 'rep'); set('#ffrom', 'from'); set('#fto', 'to');
   $('#fsort').onchange = e => { UI.sort.k = e.target.value; renderList(); };
   $('#fapo').onchange = e => { F.apoOnly = e.target.checked; renderList(); };
   $('#ftree').onclick = () => { F.tree = F.tree === false; try { localStorage.setItem('tree' + NS, F.tree ? '1' : '0'); } catch (e) {} renderList(); };
@@ -638,7 +645,7 @@ const isInvalid = l => !l._valid; // 有効・無効はリード情報（会社�
 function statusTree() {
   const DF = D.dealRule && D.dealRule.dateField;
   // アポを取ったリードはリード情報にかかわらず有効に数える（アポ数をそろえるため）
-  const val = l => l._apo || !isInvalid(l), fol = l => val(l) && !l._apo, ap = l => l._apo;
+  const val = l => l._apo || !isInvalid(l), fol = l => val(l) && !l._apo, ap = l => l._apo, mikR = l => /見込/.test(String(l['最終架電結果'] || '')), mik = l => fol(l) && mikR(l);
   if (DF) {
     // 進捗表を使う会社：商談＝進捗表M列（商談日）あり／初訪NG＝商談日なし・訪問結果NGかツブレ／商談前＝それ以外で進捗表にあるアポ／進捗表なし＝架電シートでアポだが進捗表にまだない
     const vr = l => String(l['進捗_訪問結果'] || '').trim();
@@ -648,8 +655,10 @@ function statusTree() {
     return [
       { k: 'all', t: '全て', d: 0, f: l => true },
       { k: 'inv', t: '無効', d: 1, f: l => !val(l) },
+      { k: 'imik', t: '見込み', d: 2, f: l => !val(l) && mikR(l) }, // 無効のうち、最終架電結果が「再架電/見込み」
       { k: 'val', t: '有効', d: 1, f: val },
       { k: 'fol', t: '追客中', d: 2, f: fol },
+      { k: 'mik', t: '見込み', d: 3, f: mik }, // 追客中のうち、最終架電結果が「再架電/見込み」
       { k: 'apo', t: 'アポ', d: 2, f: ap },
       { k: 'fng', t: '初訪NG', d: 3, f: fng },
       { k: 'pre', t: '商談前', d: 3, f: pre },
@@ -1051,6 +1060,7 @@ function drawLead(l, logs) {
   // 進捗表を使わない会社（アームズ以外）：アポ日時＝初回訪問日、再訪日・成約金額（＝売上）を入力する
   const VISIT = !(D.dealRule && D.dealRule.dateField);
   const dt = (s) => s ? s.replace(' ', 'T') : '';
+  const dtl = s => { s = String(s || '').trim(); return !s ? '' : esc(s.length <= 10 ? s.slice(0, 10) + 'T00:00' : s.replace(' ', 'T').slice(0, 16)); }; // 日付だけの値は 0:00 として表示
   const nextDef = inHours(new Date(Date.now() + 3 * 3600e3)).replace(' ', 'T');
   $('#drawer').innerHTML = `
   <div class="dh">
@@ -1083,8 +1093,8 @@ function drawLead(l, logs) {
         <label>商談ステータス</label><select id="dDeal"><option value="">-</option>${D.master.deal.map(v => `<option ${DR.deal === v ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select>
         <label>${VISIT ? '初回訪問日' : 'アポ日時'}</label><div><input type="datetime-local" id="dApo" value="${dt(l['アポ日時'])}"> <select id="dApoType"><option value="">-</option>${D.master.apoType.map(v => `<option ${l['アポ形式'] === v ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></div>
         <label>営業担当</label><div>${(D.master.reps || []).length ? `<select id="dRep"><option value="">-</option>${[...new Set((D.master.reps || []).concat(l['営業担当'] ? [l['営業担当']] : []))].map(v => `<option ${l['営業担当'] === v ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select>` : `<input id="dRep" value="${esc(l['営業担当'] || '')}" placeholder="訪問・商談の担当">`} <span class="sub sm">選択肢は 設定 &gt; 架電者・営業担当</span></div>
-        <label>商談実施日</label><input type="date" id="dDate" value="${esc(String(l['商談実施日']).slice(0, 10))}">
-        ${VISIT ? `<label>再訪日</label><input type="date" id="dRevisit" value="${esc(String(l['進捗_再訪日'] || '').slice(0, 10))}">` : ''}
+        <label>商談実施日</label>${VISIT ? `<input type="datetime-local" id="dDate" value="${dtl(l['商談実施日'])}">` : `<input type="date" id="dDate" value="${esc(String(l['商談実施日']).slice(0, 10))}">`}
+        ${VISIT ? `<label>再訪日</label><input type="datetime-local" id="dRevisit" value="${dtl(l['進捗_再訪日'])}">` : ''}
         <label>見積金額</label><input id="dQuote" inputmode="numeric" value="${esc(l['見積金額'])}" placeholder="円">
         ${VISIT ? `<label>成約金額</label><div><input id="dSales" inputmode="numeric" value="${esc(l['売上'])}" placeholder="円（成約のとき）"> <span class="sub sm">成果分析の売上になります</span></div>` : ''}
         <label>商材</label><select id="dProd"><option value="">-</option>${D.master.product.map(v => `<option ${l['商材'] === v ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select>
@@ -1099,8 +1109,8 @@ function drawLead(l, logs) {
       <p><button class="btn pri" id="dSave">商談を保存</button></p>
     </div>
 
-    <div class="sec"><h3>担当・メモ</h3>
-      <div class="form"><label>担当者</label><div><select id="uOwner"><option value="">-</option>${callers.map(c => `<option ${l['担当者'] === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select> <button class="btn sm" id="uSave">変更</button></div></div>
+    <div class="sec"><h3>架電担当・メモ</h3>
+      <div class="form"><label>架電担当</label><div><select id="uOwner"><option value="">-</option>${callers.map(c => `<option ${l['担当者'] === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select> <button class="btn sm" id="uSave">変更</button></div></div>
       ${l['メモ'] ? `<div class="memo" style="margin-top:8px">${esc(l['メモ'])}</div>` : ''}
       ${l['進捗メモ'] ? `<div class="sub sm" style="margin-top:8px">訪問・商談の記録（進捗表より）</div><div class="memo">${esc(l['進捗メモ'])}</div>` : ''}
     </div>
@@ -1137,7 +1147,7 @@ function drawLead(l, logs) {
   $('#dSave').onclick = () => {
     if (VISIT && num($('#dSales').value) && $('#dDeal').value !== '成約') return toast('成約金額を入れるときは、商談ステータスを「成約」にしてください');
     if (VISIT && $('#dDeal').value === '成約' && !num($('#dSales').value)) return toast('成約の場合は成約金額を入力してください');
-    saveAnd('api_saveDeal', l, Object.assign({ deal: $('#dDeal').value, apoAt: $('#dApo').value.replace('T', ' '), apoType: $('#dApoType').value, date: $('#dDate').value, quote: $('#dQuote').value, product: $('#dProd').value, wonDate: $('#dWon').value, sales: $('#dSales').value, gross: $('#dGross').value, lostReason: $('#dLost').value, sales_rep: $('#dRep').value, memo: $('#dMemo').value }, VISIT ? { revisit: $('#dRevisit').value } : {}), '商談を保存しました');
+    saveAnd('api_saveDeal', l, Object.assign({ deal: $('#dDeal').value, apoAt: $('#dApo').value.replace('T', ' '), apoType: $('#dApoType').value, date: $('#dDate').value.replace('T', ' '), quote: $('#dQuote').value, product: $('#dProd').value, wonDate: $('#dWon').value || (VISIT && $('#dDeal').value === '成約' ? $('#dDate').value.slice(0, 10) : ''), sales: $('#dSales').value, gross: $('#dGross').value, lostReason: $('#dLost').value, sales_rep: $('#dRep').value, memo: $('#dMemo').value }, VISIT ? { revisit: $('#dRevisit').value.replace('T', ' ') } : {}), '商談を保存しました');
   };
   $('#uSave').onclick = () => saveAnd('api_updateLead', l, { owner: $('#uOwner').value }, '担当者を変更しました');
 }
