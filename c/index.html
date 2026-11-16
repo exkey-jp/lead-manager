@@ -816,7 +816,7 @@ function renderAna() {
     }
     return { ym, m };
   });
-  // 日別・週別。広告費は月ごとの金額しかないので、日・週では広告費と単価を出さない（割り振って推測しない）
+  // 日別・週別。広告費は ⚙広告費_日別（QuanteeADの日別の費用）がある日だけ出す。1日でも欠ける週・日は「-」（割り振って推測しない）
   const G = F.gran || 'month';
   const dOf = s => { const x = String(s || '').match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/); return x ? `${x[1]}-${p2(+x[2])}-${p2(+x[3])}` : ''; };
   const addD = (d, n) => { const [y, mo, da] = d.split('-').map(Number); return new Date(Date.UTC(y, mo - 1, da + n)).toISOString().slice(0, 10); };
@@ -827,12 +827,14 @@ function renderAna() {
   let buckets = [];
   if (G !== 'month') {
     const d0 = F.from + '-01', d1 = [lastDayOf(F.to), today()].sort()[0];
-    const keys = [];
-    for (let d = d0; d <= d1; d = addD(d, 1)) { const k = keyOf(d); if (keys[keys.length - 1] !== k) keys.push(k); }
+    const keys = [], daysOf = {};
+    for (let d = d0; d <= d1; d = addD(d, 1)) { const k = keyOf(d); if (keys[keys.length - 1] !== k) keys.push(k); (daysOf[k] = daysOf[k] || []).push(d); }
+    const AD = D.adcostDaily || null, covered = new Set((AD || []).map(x => x.d));
+    const dayCost = days => { const set = new Set(days); return (AD || []).filter(x => set.has(x.d) && (!F.camp || x.camp === F.camp) && (!F.media || hasMedia(CAMP(x.camp)['媒体'], F.media))).reduce((s, x) => s + x.cost, 0); };
     const L2 = D.leads.filter(inCM);
     const DF = D.dealRule && D.dealRule.dateField;
     buckets = keys.map(k => {
-      const m = metrics(L2.filter(l => keyOf(dOf(l['受信日時'])) === k), 0);
+      const m = metrics(L2.filter(l => { const d = dOf(l['受信日時']); return d >= d0 && d <= d1 && keyOf(d) === k; }), 0);
       if (F.basis !== 'recv') {
         const won = L2.filter(l => l._won && keyOf(dOf(l['成約日'] || l['商談実施日'] || l['アポ日時'])) === k);
         m.apo = L2.filter(l => l._apo && keyOf(dOf(l['アポ獲得日'] || l['アポ日時'])) === k).length;
@@ -840,7 +842,9 @@ function renderAna() {
         m.won = won.length; m.sales = won.reduce((s, l) => s + l._sales, 0); m.gross = won.reduce((s, l) => s + l._gross, 0);
         m.grossEst = won.some(l => l._grossEst);
       }
-      m.noCost = true;
+      // 週は、範囲の頭（選んだ月の前の日）を除いて、表示する日がすべて日別の広告費でそろっているときだけ出す
+      const days = daysOf[k] || [];
+      if (AD && days.length && days.every(d => covered.has(d))) { m.cost = dayCost(days); m.profit = m.gross - m.cost; } else m.noCost = true;
       return { ym: G === 'week' ? `${mdOf(k)}〜${mdOf(addD(k, 6))}` : `${mdOf(k)}（${WDAY[wdOf(k)]}）`, m };
     });
   }
@@ -898,7 +902,7 @@ function renderAna() {
     <div class="card kpi"><div class="l">初回架電までの時間</div><div class="v">${M.respMed != null ? ago(M.respMed) : '-'}</div><div class="s">中央値（受付時間内換算）</div></div>
   </div>
   <h2 style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">${gName}の成果 <span class="seg" style="font-size:13px;font-weight:400"><button data-gran="month" class="${G === 'month' ? 'on' : ''}">月</button><button data-gran="week" class="${G === 'week' ? 'on' : ''}">週</button><button data-gran="day" class="${G === 'day' ? 'on' : ''}">日</button></span></h2>
-  ${G !== 'month' ? '<div class="note">上で選んだ期間（リード取得月）の範囲を、' + (G === 'week' ? '月曜はじまりの週' : '1日') + 'ごとに出しています（新しい順）。広告費は月ごとの金額のため、日・週では広告費と単価（CPL・アポ単価など）は出していません。</div>' : ''}
+  ${G !== 'month' ? '<div class="note">上で選んだ期間（リード取得月）の範囲を、' + (G === 'week' ? '月曜はじまりの週' : '1日') + 'ごとに出しています（新しい順）。' + (D.adcostDaily ? '広告費はQuanteeADの日別の費用です。日別の費用がない日を含む行は「-」にしています。当日分は暫定です。' : '広告費は月ごとの金額のため、日・週では広告費と単価（CPL・アポ単価など）は出していません。') + '</div>' : ''}
   <div class="filters" style="margin:4px 0"><span class="seg"><button data-basis="event" class="${F.basis !== 'recv' ? 'on' : ''}">発生月で見る</button><button data-basis="recv" class="${F.basis === 'recv' ? 'on' : ''}">リード取得月で見る</button></span>
     <span class="sub sm">${F.basis !== 'recv' ? 'アポ＝アポを取った月、商談＝商談した月、成約・売上＝成約した月で数えます（リード数・広告費はリード取得月）。率は目安です。' + (D.apoFixed ? ` ${md(D.apoFixed.until)}までのアポ数は、それまでの管理の数字で固定しています（訴求・媒体で絞ったときはシステムの数え方）。` : '') : 'その月に取得したリードが、あとでアポ・商談・成約になった数です。'}</span></div>
   <div class="tblwrap"${G === 'day' ? ' style="max-height:480px"' : ''}><table>${thead(G === 'week' ? '週（月曜〜）' : G === 'day' ? '日' : F.basis !== 'recv' ? '月' : 'リード取得月')}<tbody>${(G === 'month' ? series : series.slice().reverse()).map(x => row(x.ym, x.m)).join('')}</tbody></table></div>
