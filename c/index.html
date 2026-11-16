@@ -830,6 +830,12 @@ function renderAna() {
     const keys = [], daysOf = {};
     for (let d = d0; d <= d1; d = addD(d, 1)) { const k = keyOf(d); if (keys[keys.length - 1] !== k) keys.push(k); (daysOf[k] = daysOf[k] || []).push(d); }
     const AD = D.adcostDaily || null, covered = new Set((AD || []).map(x => x.d));
+    // 日別の表より前の日：その月の広告費（月額）が日別の合計で説明できる＝配信開始前で費用なし、なら0円として扱う
+    const first = AD && AD.length ? AD.map(x => x.d).sort()[0] : '';
+    const monCost = ym => D.adcost.filter(c => c.ym === ym).reduce((s, c) => s + c.cost, 0);
+    const dayMon = ym => (AD || []).filter(x => x.d.slice(0, 7) === ym).reduce((s, x) => s + x.cost, 0);
+    const preOK = {};
+    const isCovered = d => { if (covered.has(d)) return true; if (!first || d >= first) return false; const ym = d.slice(0, 7); if (!(ym in preOK)) { const mc = monCost(ym); preOK[ym] = mc - dayMon(ym) <= Math.max(3000, mc * 0.02); } return preOK[ym]; };
     const dayCost = days => { const set = new Set(days); return (AD || []).filter(x => set.has(x.d) && (!F.camp || x.camp === F.camp) && (!F.media || hasMedia(CAMP(x.camp)['媒体'], F.media))).reduce((s, x) => s + x.cost, 0); };
     const L2 = D.leads.filter(inCM);
     const DF = D.dealRule && D.dealRule.dateField;
@@ -844,7 +850,7 @@ function renderAna() {
       }
       // 週は、範囲の頭（選んだ月の前の日）を除いて、表示する日がすべて日別の広告費でそろっているときだけ出す
       const days = daysOf[k] || [];
-      if (AD && days.length && days.every(d => covered.has(d))) { m.cost = dayCost(days); m.profit = m.gross - m.cost; } else m.noCost = true;
+      if (AD && days.length && days.every(isCovered)) { m.cost = dayCost(days); m.profit = m.gross - m.cost; } else m.noCost = true;
       return { ym: G === 'week' ? `${mdOf(k)}〜${mdOf(addD(k, 6))}` : `${mdOf(k)}（${WDAY[wdOf(k)]}）`, m };
     });
   }
