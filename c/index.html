@@ -331,7 +331,7 @@ function prep() {
     if (t >= ch * 60 + cm) return new Date(base + 864e5 + (oh * 60 + om) * 60e3);
     return d;
   };
-  const callsBy = {};
+  const callsBy = {}, CONN_ = new Set(((D.master && D.master.results) || []).filter(r => r.connect).map(r => r.cat + '/' + r.val));
   D.logs.forEach(g => { if (g[2] === '架電') (callsBy[g[1]] = callsBy[g[1]] || []).push(g); });
   Object.values(callsBy).forEach(a => a.sort((x, y) => String(x[0]).localeCompare(String(y[0]))));
   D.leads.forEach(l => {
@@ -345,6 +345,9 @@ function prep() {
     l._resp = f && l._start ? Math.max(0, (f - l._start) / 60e3) : null;
     // 進捗表に商談日（M列）がある先は商談済み＝アポ済みなので、架電シートの結果にかかわらずアポとして数える
     l._apo = !!(l['アポ日時'] || l['アポ獲得日'] || l['進捗_商談日']);
+    // 接続した日（発生月で見るときの接続数に使う）：つながった最初の架電（アポ・断り・接続扱いの結果）の日。ログがなければアポ獲得日→初回架電日時
+    l._conn = l['接続済'] === true || l['接続済'] === 'TRUE' || l['接続済'] === 'true';
+    if (l._conn) { const g = (callsBy[l['リードID']] || []).find(g => g[4] === 'アポ' || g[4] === '断り' || CONN_.has(g[4] + '/' + g[5])); l._connAt = String((g && g[0]) || l['アポ獲得日'] || l['初回架電日時'] || l['最終架電日時'] || l['受信日時']); }
     const DF = D.dealRule && D.dealRule.dateField; // 商談日の列がある会社は「商談日が入っている＝商談あり」（商談結果がツブレでも数える）
     l._dealDone = DF ? !!l[DF] : ((D.dealRule && D.dealRule.count) || ['現調・見積中', '検討中', '成約', '失注']).includes(l['商談ステータス']);
     l._dealMon = String((DF ? l[DF] : '') || l['商談実施日'] || l['アポ日時'] || l['アポ獲得日'] || '').slice(0, 7);
@@ -793,12 +796,12 @@ function renderAna() {
   const M = metrics(L, costOf(months, F.camp, F.media));
   const row = (label, m, extra = '') => { const yc = v => (m.noCost ? '-' : yen(v)); return `<tr ${extra}><td>${label}</td>
     <td class="num">${yc(m.cost)}</td><td class="num">${m.n}</td><td class="num">${m.valid}</td><td class="num">${pct(m.valid, m.n)}</td><td class="num cpa">${yc(div(m.cost, m.n))}</td><td class="num">${yc(div(m.cost, m.valid))}</td>
-    <td class="num">${pct(m.called, m.uniq)}</td><td class="num">${pct(m.conn, m.called)}</td>
-    <td class="num b">${m.apo}</td><td class="num">${pct(m.apo, m.valid)}</td><td class="num cpa">${yc(div(m.cost, m.apo))}</td>
+    <td class="num">${pct(m.called, m.uniq)}</td><td class="num">${m.validConn}</td><td class="num">${pct(m.validConn, m.valid)}</td>
+    <td class="num b">${m.apo}</td><td class="num">${pct(m.apo, m.valid)}</td><td class="num">${pct(m.apo, m.validConn)}</td><td class="num cpa">${yc(div(m.cost, m.apo))}</td>
     <td class="num">${m.deal}</td><td class="num">${pct(m.deal, m.apo)}</td>
     <td class="num b">${m.won}</td><td class="num">${pct(m.won, m.deal)}</td><td class="num cpa">${yc(div(m.cost, m.won))}</td>
     <td class="num b">${yen(m.sales)}</td><td class="num">${yen(m.gross)}${m.grossEst ? '<span class="sub">*</span>' : ''}</td><td class="num ${m.profit < 0 ? 'red' : ''}">${m.cost ? yen(m.profit) : '-'}</td><td class="num">${m.cost ? (m.sales / m.cost * 100).toFixed(0) + '%' : '-'}</td></tr>`; };
-  const thead = first => `<thead><tr><th>${first}</th><th class="num">広告費</th><th class="num">リード</th><th class="num">有効</th><th class="num">有効率</th><th class="num cpa">CPL</th><th class="num">有効CPL</th><th class="num">架電率</th><th class="num">接続率</th><th class="num">アポ</th><th class="num">アポ率</th><th class="num cpa">アポ単価</th><th class="num">商談</th><th class="num">商談実施率</th><th class="num">成約</th><th class="num">成約率</th><th class="num cpa">成約単価</th><th class="num">売上</th><th class="num">粗利</th><th class="num">粗利−広告費</th><th class="num">ROAS</th></tr></thead>`;
+  const thead = first => `<thead><tr><th>${first}</th><th class="num">広告費</th><th class="num">リード</th><th class="num">有効</th><th class="num">有効率</th><th class="num cpa">CPL</th><th class="num">有効CPL</th><th class="num">架電率</th><th class="num">接続数</th><th class="num">接続率</th><th class="num">アポ</th><th class="num">有効アポ率</th><th class="num">接続アポ率</th><th class="num cpa">アポ単価</th><th class="num">商談</th><th class="num">商談実施率</th><th class="num">成約</th><th class="num">成約率</th><th class="num cpa">成約単価</th><th class="num">売上</th><th class="num">粗利</th><th class="num">粗利−広告費</th><th class="num">ROAS</th></tr></thead>`;
   const byCamp = camps.filter(c => !F.camp || c['訴求'] === F.camp).filter(c => !F.media || hasMedia(c['媒体'], F.media))
     .filter(c => !F.live || c['出稿'] === '出稿中') // 「出稿中だけ」：QuanteeADで昨日・今日に費用が出ている訴求
     .map(c => ({ c, m: metrics(L.filter(l => l['訴求'] === c['訴求']), costOf(months, c['訴求'])) })).filter(x => x.m.n || x.m.cost);
@@ -815,6 +818,7 @@ function renderAna() {
       const L2 = D.leads.filter(inCM);
       const won = L2.filter(l => l._won && evMon(l, '成約日', '商談実施日', 'アポ日時') === ym);
       m.apo = apoByEvent(ym, L2, !!(F.camp || F.media)); // 決まった日までは固定値（訴求・媒体で絞ったときはシステムの数）
+      m.validConn = L2.filter(l => l._valid && l._conn && l._connAt.slice(0, 7) === ym).length; // 接続数も接続した月で数える（接続アポ率をアポと同じ基準にする）
       m.deal = L2.filter(l => l._dealDone && l._dealMon === ym).length;
       m.won = won.length; m.sales = won.reduce((s, l) => s + l._sales, 0); m.gross = won.reduce((s, l) => s + l._gross, 0);
       m.grossEst = won.some(l => l._grossEst); m.profit = m.gross - m.cost;
@@ -849,6 +853,7 @@ function renderAna() {
       if (F.basis !== 'recv') {
         const won = L2.filter(l => l._won && keyOf(dOf(l['成約日'] || l['商談実施日'] || l['アポ日時'])) === k);
         m.apo = L2.filter(l => l._apo && keyOf(dOf(l['アポ獲得日'] || l['アポ日時'])) === k).length;
+        m.validConn = L2.filter(l => l._valid && l._conn && keyOf(dOf(l._connAt)) === k).length;
         m.deal = L2.filter(l => l._dealDone && keyOf(dOf((DF ? l[DF] : '') || l['商談実施日'] || l['アポ日時'] || l['アポ獲得日'])) === k).length;
         m.won = won.length; m.sales = won.reduce((s, l) => s + l._sales, 0); m.gross = won.reduce((s, l) => s + l._gross, 0);
         m.grossEst = won.some(l => l._grossEst);
