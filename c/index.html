@@ -786,13 +786,13 @@ function renderAna() {
   const inF = l => months.includes(l._ym) && (!F.camp || l['訴求'] === F.camp) && (!F.media || hasMedia(l._media, F.media));
   const L = D.leads.filter(inF);
   const M = metrics(L, costOf(months, F.camp, F.media));
-  const row = (label, m, extra = '') => `<tr ${extra}><td>${label}</td>
-    <td class="num">${yen(m.cost)}</td><td class="num">${m.n}</td><td class="num">${m.valid}</td><td class="num">${pct(m.valid, m.n)}</td><td class="num cpa">${yen(div(m.cost, m.n))}</td><td class="num">${yen(div(m.cost, m.valid))}</td>
+  const row = (label, m, extra = '') => { const yc = v => (m.noCost ? '-' : yen(v)); return `<tr ${extra}><td>${label}</td>
+    <td class="num">${yc(m.cost)}</td><td class="num">${m.n}</td><td class="num">${m.valid}</td><td class="num">${pct(m.valid, m.n)}</td><td class="num cpa">${yc(div(m.cost, m.n))}</td><td class="num">${yc(div(m.cost, m.valid))}</td>
     <td class="num">${pct(m.called, m.uniq)}</td><td class="num">${pct(m.conn, m.called)}</td>
-    <td class="num b">${m.apo}</td><td class="num">${pct(m.apo, m.valid)}</td><td class="num cpa">${yen(div(m.cost, m.apo))}</td>
+    <td class="num b">${m.apo}</td><td class="num">${pct(m.apo, m.valid)}</td><td class="num cpa">${yc(div(m.cost, m.apo))}</td>
     <td class="num">${m.deal}</td><td class="num">${pct(m.deal, m.apo)}</td>
-    <td class="num b">${m.won}</td><td class="num">${pct(m.won, m.deal)}</td><td class="num cpa">${yen(div(m.cost, m.won))}</td>
-    <td class="num b">${yen(m.sales)}</td><td class="num">${yen(m.gross)}${m.grossEst ? '<span class="sub">*</span>' : ''}</td><td class="num ${m.profit < 0 ? 'red' : ''}">${m.cost ? yen(m.profit) : '-'}</td><td class="num">${m.cost ? (m.sales / m.cost * 100).toFixed(0) + '%' : '-'}</td></tr>`;
+    <td class="num b">${m.won}</td><td class="num">${pct(m.won, m.deal)}</td><td class="num cpa">${yc(div(m.cost, m.won))}</td>
+    <td class="num b">${yen(m.sales)}</td><td class="num">${yen(m.gross)}${m.grossEst ? '<span class="sub">*</span>' : ''}</td><td class="num ${m.profit < 0 ? 'red' : ''}">${m.cost ? yen(m.profit) : '-'}</td><td class="num">${m.cost ? (m.sales / m.cost * 100).toFixed(0) + '%' : '-'}</td></tr>`; };
   const thead = first => `<thead><tr><th>${first}</th><th class="num">広告費</th><th class="num">リード</th><th class="num">有効</th><th class="num">有効率</th><th class="num cpa">CPL</th><th class="num">有効CPL</th><th class="num">架電率</th><th class="num">接続率</th><th class="num">アポ</th><th class="num">アポ率</th><th class="num cpa">アポ単価</th><th class="num">商談</th><th class="num">商談実施率</th><th class="num">成約</th><th class="num">成約率</th><th class="num cpa">成約単価</th><th class="num">売上</th><th class="num">粗利</th><th class="num">粗利−広告費</th><th class="num">ROAS</th></tr></thead>`;
   const byCamp = camps.filter(c => !F.camp || c['訴求'] === F.camp).filter(c => !F.media || hasMedia(c['媒体'], F.media))
     .filter(c => !F.live || c['出稿'] === '出稿中') // 「出稿中だけ」：QuanteeADで昨日・今日に費用が出ている訴求
@@ -816,6 +816,36 @@ function renderAna() {
     }
     return { ym, m };
   });
+  // 日別・週別。広告費は月ごとの金額しかないので、日・週では広告費と単価を出さない（割り振って推測しない）
+  const G = F.gran || 'month';
+  const dOf = s => { const x = String(s || '').match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/); return x ? `${x[1]}-${p2(+x[2])}-${p2(+x[3])}` : ''; };
+  const addD = (d, n) => { const [y, mo, da] = d.split('-').map(Number); return new Date(Date.UTC(y, mo - 1, da + n)).toISOString().slice(0, 10); };
+  const wdOf = d => { const [y, mo, da] = d.split('-').map(Number); return new Date(Date.UTC(y, mo - 1, da)).getUTCDay(); };
+  const keyOf = d => (!d ? '' : G === 'week' ? addD(d, -((wdOf(d) + 6) % 7)) : d); // 週は月曜はじまり
+  const lastDayOf = ym => { const [y, mo] = ym.split('-').map(Number); return new Date(Date.UTC(y, mo, 0)).toISOString().slice(0, 10); };
+  const mdOf = d => `${+d.slice(5, 7)}/${+d.slice(8, 10)}`;
+  let buckets = [];
+  if (G !== 'month') {
+    const d0 = F.from + '-01', d1 = [lastDayOf(F.to), today()].sort()[0];
+    const keys = [];
+    for (let d = d0; d <= d1; d = addD(d, 1)) { const k = keyOf(d); if (keys[keys.length - 1] !== k) keys.push(k); }
+    const L2 = D.leads.filter(inCM);
+    const DF = D.dealRule && D.dealRule.dateField;
+    buckets = keys.map(k => {
+      const m = metrics(L2.filter(l => keyOf(dOf(l['受信日時'])) === k), 0);
+      if (F.basis !== 'recv') {
+        const won = L2.filter(l => l._won && keyOf(dOf(l['成約日'] || l['商談実施日'] || l['アポ日時'])) === k);
+        m.apo = L2.filter(l => l._apo && keyOf(dOf(l['アポ獲得日'] || l['アポ日時'])) === k).length;
+        m.deal = L2.filter(l => l._dealDone && keyOf(dOf((DF ? l[DF] : '') || l['商談実施日'] || l['アポ日時'] || l['アポ獲得日'])) === k).length;
+        m.won = won.length; m.sales = won.reduce((s, l) => s + l._sales, 0); m.gross = won.reduce((s, l) => s + l._gross, 0);
+        m.grossEst = won.some(l => l._grossEst);
+      }
+      m.noCost = true;
+      return { ym: G === 'week' ? `${mdOf(k)}〜${mdOf(addD(k, 6))}` : `${mdOf(k)}（${WDAY[wdOf(k)]}）`, m };
+    });
+  }
+  const series = G === 'month' ? byMon : buckets;
+  const gName = G === 'day' ? '日別' : G === 'week' ? '週別' : '月別';
   // 架電スピード別
   const SP = [['5分以内', 0, 5], ['5〜30分', 5, 30], ['30分〜1時間', 30, 60], ['1〜3時間', 60, 180], ['3時間〜当日', 180, 1440], ['翌日以降', 1440, 1e9]];
   const valid = L.filter(l => l._valid);
@@ -867,13 +897,14 @@ function renderAna() {
     <div class="card kpi hl"><div class="l">粗利 − 広告費</div><div class="v" style="color:${M.profit < 0 ? '#ffb4ab' : '#b7f5c4'}">${M.cost ? yenS(M.profit) : '-'}</div><div class="s">粗利ROI ${M.cost ? (M.profit / M.cost * 100).toFixed(0) + '%' : '-'}</div></div>
     <div class="card kpi"><div class="l">初回架電までの時間</div><div class="v">${M.respMed != null ? ago(M.respMed) : '-'}</div><div class="s">中央値（受付時間内換算）</div></div>
   </div>
-  <h2>月別の成果</h2>
+  <h2 style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">${gName}の成果 <span class="seg" style="font-size:13px;font-weight:400"><button data-gran="month" class="${G === 'month' ? 'on' : ''}">月</button><button data-gran="week" class="${G === 'week' ? 'on' : ''}">週</button><button data-gran="day" class="${G === 'day' ? 'on' : ''}">日</button></span></h2>
+  ${G !== 'month' ? '<div class="note">上で選んだ期間（リード取得月）の範囲を、' + (G === 'week' ? '月曜はじまりの週' : '1日') + 'ごとに出しています（新しい順）。広告費は月ごとの金額のため、日・週では広告費と単価（CPL・アポ単価など）は出していません。</div>' : ''}
   <div class="filters" style="margin:4px 0"><span class="seg"><button data-basis="event" class="${F.basis !== 'recv' ? 'on' : ''}">発生月で見る</button><button data-basis="recv" class="${F.basis === 'recv' ? 'on' : ''}">リード取得月で見る</button></span>
     <span class="sub sm">${F.basis !== 'recv' ? 'アポ＝アポを取った月、商談＝商談した月、成約・売上＝成約した月で数えます（リード数・広告費はリード取得月）。率は目安です。' + (D.apoFixed ? ` ${md(D.apoFixed.until)}までのアポ数は、それまでの管理の数字で固定しています（訴求・媒体で絞ったときはシステムの数え方）。` : '') : 'その月に取得したリードが、あとでアポ・商談・成約になった数です。'}</span></div>
-  <div class="tblwrap"><table>${thead(F.basis !== 'recv' ? '月' : 'リード取得月')}<tbody>${byMon.map(x => row(x.ym, x.m)).join('')}</tbody></table></div>
+  <div class="tblwrap"${G === 'day' ? ' style="max-height:480px"' : ''}><table>${thead(G === 'week' ? '週（月曜〜）' : G === 'day' ? '日' : F.basis !== 'recv' ? '月' : 'リード取得月')}<tbody>${(G === 'month' ? series : series.slice().reverse()).map(x => row(x.ym, x.m)).join('')}</tbody></table></div>
   <div class="grid two">
     <div class="card"><h3>ファネル</h3>${fun.map(([k, v], i) => `<div class="bar funnel"><div class="lb">${k}</div><div class="tr"><div class="fl" style="width:${v / funMax * 100}%"></div></div><div class="vl">${v}件${i ? ' <span class="sub">' + pct(v, fun[i - 1][1]) + '</span>' : ''}</div></div>`).join('')}<div class="note">右の％は1つ前の段階からの移行率。有効リード＝${esc(D.validRule.label)}</div></div>
-    <div class="card"><h3>月別推移</h3><canvas id="chMon" height="200"></canvas></div>
+    <div class="card"><h3>${gName}推移</h3><canvas id="chMon" height="200"></canvas></div>
   </div>
   <h2 style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">訴求別の成果${hasLive ? ` <span class="seg" style="font-size:13px;font-weight:400"><button data-live="" class="${F.live ? '' : 'on'}">すべて</button><button data-live="1" class="${F.live ? 'on' : ''}" title="QuanteeADで昨日・今日に広告費が出ている訴求だけ">出稿中だけ</button></span>` : ''}</h2>
   <div class="tblwrap"><table>${thead('訴求')}<tbody>${byCamp.map(x => row(`<b>${esc(x.c['表示名'] || x.c['訴求'])}</b>${x.c['出稿'] ? ` <span class="tag ${x.c['出稿'] === '出稿中' ? 'live' : 'stop'}" title="QuanteeADで昨日・今日に費用が出ているか">${esc(x.c['出稿'])}</span>` : ''} <span class="tag">${esc(x.c['媒体'] || '')}</span>${x.c['状態'] && x.c['状態'] !== '配信中' ? ` <span class="tag">${esc(x.c['状態'])}</span>` : ''}`, x.m)).join('')}${row(F.live ? '合計（出稿中）' : '合計', Mtab, 'class="total"')}</tbody></table></div>
@@ -902,6 +933,7 @@ function renderAna() {
   sv('#afrom', 'from'); sv('#ato', 'to'); sv('#acamp', 'camp'); sv('#amedia', 'media');
   document.querySelectorAll('#p-ana [data-basis]').forEach(b => b.onclick = () => { F.basis = b.dataset.basis; renderAna(); });
   document.querySelectorAll('#p-ana [data-live]').forEach(b => b.onclick = () => { F.live = !!b.dataset.live; renderAna(); });
+  document.querySelectorAll('#p-ana [data-gran]').forEach(b => b.onclick = () => { F.gran = b.dataset.gran; renderAna(); });
   document.querySelectorAll('[data-q]').forEach(b => b.onclick = () => {
     const c = today().slice(0, 7); const [y, m] = c.split('-').map(Number); const last = m === 1 ? `${y - 1}-12` : `${y}-${p2(m - 1)}`;
     if (b.dataset.q === 'this') F.from = F.to = c; if (b.dataset.q === 'last') F.from = F.to = last; if (b.dataset.q === 'all') { F.from = allMons[0]; F.to = c; }
@@ -911,11 +943,11 @@ function renderAna() {
   TA.draw();
   if (window.Chart) {
     charts.push(new Chart($('#chMon'), {
-      data: { labels: byMon.map(x => x.ym), datasets: [
-        { type: 'line', label: 'アポ率', data: byMon.map(x => x.m.valid ? +(x.m.apo / x.m.valid * 100).toFixed(1) : null), yAxisID: 'y2', borderColor: '#e8710a', backgroundColor: '#e8710a', order: 0 },
-        { type: 'bar', label: 'リード', data: byMon.map(x => x.m.n), backgroundColor: '#c6d4ff', order: 2 },
-        { type: 'bar', label: 'アポ', data: byMon.map(x => x.m.apo), backgroundColor: '#1f5eff', order: 1 },
-        { type: 'bar', label: '成約', data: byMon.map(x => x.m.won), backgroundColor: '#137333', order: 1 },
+      data: { labels: series.map(x => x.ym), datasets: [
+        { type: 'line', label: 'アポ率', data: series.map(x => x.m.valid ? +(x.m.apo / x.m.valid * 100).toFixed(1) : null), yAxisID: 'y2', borderColor: '#e8710a', backgroundColor: '#e8710a', order: 0 },
+        { type: 'bar', label: 'リード', data: series.map(x => x.m.n), backgroundColor: '#c6d4ff', order: 2 },
+        { type: 'bar', label: 'アポ', data: series.map(x => x.m.apo), backgroundColor: '#1f5eff', order: 1 },
+        { type: 'bar', label: '成約', data: series.map(x => x.m.won), backgroundColor: '#137333', order: 1 },
       ] },
       options: { responsive: true, interaction: { mode: 'index', intersect: false }, scales: { y: { beginAtZero: true, title: { display: true, text: '件' } }, y2: { position: 'right', beginAtZero: true, grid: { display: false }, ticks: { callback: v => v + '%' } } } },
     }));
@@ -1065,7 +1097,7 @@ function drawLead(l, logs) {
   $('#drawer').innerHTML = `
   <div class="dh">
     <div style="display:flex;justify-content:space-between;align-items:start;gap:10px">
-      <div><div class="nm">${esc(l['氏名'])} 様 ${stBadge(l['ステータス'])}${l._notHouse ? '<span class="nh">持ち家戸建て以外の回答（有効リード外）</span>' : ''}${l._areaOut ? '<span class="nh">対応エリア外（有効リード外）</span>' : ''}</div>
+      <div><div class="nm">${esc(l['氏名'])} 様${D.genderOn && l['性別'] ? ` <span class="sub sm">（${esc(l['性別'])}）</span>` : ''} ${stBadge(l['ステータス'])}${l._notHouse ? '<span class="nh">持ち家戸建て以外の回答（有効リード外）</span>' : ''}${l._areaOut ? '<span class="nh">対応エリア外（有効リード外）</span>' : ''}</div>
       <a class="tel" href="tel:${esc(l['電話番号'])}">📞 ${esc(l['電話番号'])}</a> <span class="sub">${esc(l['都道府県'])}</span></div>
       <button class="btn" id="dclose">閉じる</button>
     </div>
@@ -1111,6 +1143,7 @@ function drawLead(l, logs) {
 
     <div class="sec"><h3>架電担当・メモ</h3>
       <div class="form"><label>架電担当</label><div><select id="uOwner"><option value="">-</option>${callers.map(c => `<option ${l['担当者'] === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select> <button class="btn sm" id="uSave">変更</button></div></div>
+      ${D.genderOn ? `<div class="form" style="margin-top:6px"><label>性別</label><div><select id="uGender"><option value="">-</option>${['男性', '女性', '不明'].concat(l['性別'] && !['男性', '女性', '不明'].includes(l['性別']) ? [l['性別']] : []).map(g => `<option ${l['性別'] === g ? 'selected' : ''}>${esc(g)}</option>`).join('')}</select> <button class="btn sm" id="uGSave">変更</button></div></div>` : ''}
       ${l['メモ'] ? `<div class="memo" style="margin-top:8px">${esc(l['メモ'])}</div>` : ''}
       ${l['進捗メモ'] ? `<div class="sub sm" style="margin-top:8px">訪問・商談の記録（進捗表より）</div><div class="memo">${esc(l['進捗メモ'])}</div>` : ''}
     </div>
@@ -1150,6 +1183,7 @@ function drawLead(l, logs) {
     saveAnd('api_saveDeal', l, Object.assign({ deal: $('#dDeal').value, apoAt: $('#dApo').value.replace('T', ' '), apoType: $('#dApoType').value, date: $('#dDate').value.replace('T', ' '), quote: $('#dQuote').value, product: $('#dProd').value, wonDate: $('#dWon').value || (VISIT && $('#dDeal').value === '成約' ? $('#dDate').value.slice(0, 10) : ''), sales: $('#dSales').value, gross: $('#dGross').value, lostReason: $('#dLost').value, sales_rep: $('#dRep').value, memo: $('#dMemo').value }, VISIT ? { revisit: $('#dRevisit').value.replace('T', ' ') } : {}), '商談を保存しました');
   };
   $('#uSave').onclick = () => saveAnd('api_updateLead', l, { owner: $('#uOwner').value }, '担当者を変更しました');
+  if ($('#uGSave')) $('#uGSave').onclick = () => saveAnd('api_updateLead', l, { gender: $('#uGender').value }, '性別を変更しました');
 }
 
 async function saveAnd(fn, l, p, msg) {
