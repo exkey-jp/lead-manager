@@ -430,7 +430,7 @@ const rowCls = l => l['ステータス'] === '重複' ? 'dup' : isLost(l) ? 'los
 function mCards(list, why) {
   if (!list.length) return `<div class="empty">該当するリードはありません</div>`;
   return `<div class="mcards">${list.map(l => {
-    const nx = toD(l['次回架電予定']), unt = l['ステータス'] === '未対応';
+    const nx = toD(l['次回架電予定']), unt = l['ステータス'] === '未対応' && !alertSkip_(l); // フォームで対象外のリードは経過を赤くしない
     const r2 = [campName(l['訴求']), l['都道府県'], num(l['架電回数']) ? `架電${num(l['架電回数'])}回` : '', String(l['最終架電結果'] || '').replace(/^[^/]*\//, '')].filter(Boolean).map(esc).join('・');
     const r3 = [unt ? `<span class="${l._wait >= num(D.settings['初回架電の警告(分)']) ? 'red b' : l._wait >= num(D.settings['初回架電の目標(分)']) ? 'yel b' : ''}">取得 ${md(l['受信日時'])}（${l._wait <= 0 ? '受付時間前' : ago(l._wait) + '経過'}）</span>` : `取得 ${md(l['受信日時'])}`,
       nx ? `<span class="${nx < Date.now() ? 'red b' : ''}">次回 ${md(l['次回架電予定'])}</span>` : '', l['アポ日時'] ? `${isVisit() ? '訪問' : 'アポ'} ${md(l['アポ日時'])}` : '', l['メモ'] ? esc(String(l['メモ']).split('\n')[0]) : ''].filter(Boolean).join('　');
@@ -448,7 +448,7 @@ function leadRows(list, cols) {
   if (MOB()) return mCards(list);
   const C = {
     recv: ['リード取得日', l => `${md(l['受信日時'])}`],
-    wait: ['経過', l => l['ステータス'] === '未対応' ? `<span class="${l._wait >= num(D.settings['初回架電の警告(分)']) ? 'red b' : l._wait >= num(D.settings['初回架電の目標(分)']) ? 'yel b' : ''}">${l._wait <= 0 ? '受付時間前' : ago(l._wait)}</span>` : (l._resp != null ? `<span class="sub" title="初回架電までの時間">${ago(l._resp)}</span>` : '')],
+    wait: ['経過', l => l['ステータス'] === '未対応' && alertSkip_(l) ? '<span class="sub" title="フォームの回答で対象外。架電の対象外">フォーム対象外</span>' : l['ステータス'] === '未対応' ? `<span class="${l._wait >= num(D.settings['初回架電の警告(分)']) ? 'red b' : l._wait >= num(D.settings['初回架電の目標(分)']) ? 'yel b' : ''}">${l._wait <= 0 ? '受付時間前' : ago(l._wait)}</span>` : (l._resp != null ? `<span class="sub" title="初回架電までの時間">${ago(l._resp)}</span>` : '')],
     camp: ['訴求', l => `<span class="sm" title="${esc(campName(l['訴求']))}">${esc(campName(l['訴求']))}</span>`],
     name: ['氏名', l => `<b>${esc(l['氏名'])}</b>${l._notHouse ? '<span class="nh">戸建て以外</span>' : ''}${l._areaOut ? '<span class="nh">エリア外</span>' : ''}`],
     gender: ['性別', l => esc(l['性別'] || '')], // 性別の列がある会社だけ（D.genderOn）
@@ -581,7 +581,7 @@ function renderList() {
   const k = UI.sort.k, d = UI.sort.d;
   list.sort((a, b) => String(a[k] || '').localeCompare(String(b[k] || '')) * d);
   // 訴求タブ（未対応・期限切れの件数を赤バッジで）
-  const todo = c => L.filter(l => (!c || l['訴求'] === c) && (l['ステータス'] === '未対応' || (l['ステータス'] === '追客中' && toD(l['次回架電予定']) && toD(l['次回架電予定']) < Date.now()))).length;
+  const todo = c => L.filter(l => (!c || l['訴求'] === c) && ((l['ステータス'] === '未対応' && !alertSkip_(l)) || (l['ステータス'] === '追客中' && toD(l['次回架電予定']) && toD(l['次回架電予定']) < Date.now()))).length;
   const tab = (key, label, sub) => { const n = todo(key); return `<button class="ctab ${F.camp === key ? 'on' : ''}" data-camp="${esc(key)}">${esc(label)}${sub ? ` <span class="tag">${esc(sub)}</span>` : ''}${n ? `<span class="cbadge" title="未対応・再架電期限切れ">${n}</span>` : ''}</button>`; };
   const tabs = `<div class="ctabs">${tab('', 'すべての訴求')}${camps.map(c => tab(c['訴求'], c['表示名'] || c['訴求'], c['状態'] && c['状態'] !== '配信中' ? c['状態'] : '')).join('')}</div>`;
   // 訴求を選んでいるとき：トークスクリプト＋その訴求のアンケート項目を列に出す
