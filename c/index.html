@@ -390,7 +390,7 @@ function alerts() {
     { k: 'new', c: 'blu', t: '新着（未架電）', d: `${warn}分以内・受付時間外`, f: l => l['ステータス'] === '未対応' && l._wait < warn, sort: (a, b) => b._recv - a._recv },
     { k: 'over', c: 'red', t: '再架電 期限切れ', d: '次回架電予定を過ぎている', f: l => l['ステータス'] === '追客中' && nx(l) && nx(l) < now && fmt(nx(l)).slice(0, 10) < t0, sort: (a, b) => nx(a) - nx(b) },
     { k: 'today', c: 'yel', t: '今日の再架電', d: '次回架電予定が今日', f: l => l['ステータス'] === '追客中' && nx(l) && fmt(nx(l)).slice(0, 10) === t0, sort: (a, b) => nx(a) - nx(b) },
-    { k: 'stale', c: 'yel', t: '追客が止まっている', d: `予定なし・最終架電から${stale}日以上`, f: l => l['ステータス'] === '追客中' && !l['次回架電予定'] && num(l['架電回数']) < maxCall && (now - toD(l['最終架電日時'])) / 864e5 >= stale, sort: (a, b) => toD(a['最終架電日時']) - toD(b['最終架電日時']) },
+    { k: 'stale', c: 'yel', t: '追客が止まっている', d: `予定なし・最終架電から${stale}日以上`, f: l => l['ステータス'] === '追客中' && !l['次回架電予定'] && l['最終架電結果'] !== 'その他/SMS' && num(l['架電回数']) < maxCall && (now - toD(l['最終架電日時'])) / 864e5 >= stale /* SMSを送ったリードは休眠扱い（2026-11-18 アマネライフ様。次の架電結果が入ると戻る） */, sort: (a, b) => toD(a['最終架電日時']) - toD(b['最終架電日時']) },
     { k: 'apo', c: 'blu', t: '今日・明日のアポ', d: '商談の準備・前日確認', f: l => l['ステータス'] === 'アポ獲得' && l['アポ日時'] && [t0, tomorrow].includes(l['アポ日時'].slice(0, 10)), sort: (a, b) => toD(a['アポ日時']) - toD(b['アポ日時']) },
     { k: 'nores', c: 'red', t: '商談結果 未入力', d: 'アポ日を過ぎて結果が未入力', f: l => l['商談ステータス'] === DM().BEFORE && l['アポ日時'] && l['アポ日時'].slice(0, 10) < t0, sort: (a, b) => toD(a['アポ日時']) - toD(b['アポ日時']) },
     ...(DM().ABSENT ? [{ k: 'absent', c: 'red', t: DM().ABSENT, d: '商談が留守だった（再アポの架電）', f: l => l['商談ステータス'] === DM().ABSENT, sort: (a, b) => toD(a['アポ日時']) - toD(b['アポ日時']) }] : []),
