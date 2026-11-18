@@ -375,6 +375,8 @@ function prep() {
 }
 
 // ====================== アラート ======================
+// D.alertSkip（例：{対象判定:'対象外'}）に当てはまるリードか
+const alertSkip_ = l => { const SK = D.alertSkip || {}; return Object.keys(SK).some(k => String((l._ans || {})[k] || '').trim() === SK[k]); };
 function alerts() {
   const S = D.settings, now = Date.now(), t0 = today();
   const warn = num(S['初回架電の目標(分)']) || 30, red = num(S['初回架電の警告(分)']) || 120;
@@ -394,7 +396,7 @@ function alerts() {
     ...(DM().ABSENT ? [{ k: 'absent', c: 'red', t: DM().ABSENT, d: '商談が留守だった（再アポの架電）', f: l => l['商談ステータス'] === DM().ABSENT, sort: (a, b) => toD(a['アポ日時']) - toD(b['アポ日時']) }] : []),
     { k: 'consider', c: 'yel', t: '検討中のフォロー', d: `見積・検討中で${fol}日以上更新なし`, f: l => l['ステータス'] === '商談中' && (now - toD(l['更新日時'])) / 864e5 >= fol, sort: (a, b) => toD(a['更新日時']) - toD(b['更新日時']) },
     { k: 'long', c: '', t: '長期追客', d: `架電${maxCall}回以上で追客中`, f: l => l['ステータス'] === '追客中' && num(l['架電回数']) >= maxCall, sort: (a, b) => num(b['架電回数']) - num(a['架電回数']) },
-  ].map(a => Object.assign(a, { list: L.filter(a.f).sort(a.sort) }));
+  ].map(a => Object.assign(a, { list: L.filter(l => a.f(l) && !(['new_red', 'new_yel', 'new'].includes(a.k) && alertSkip_(l))).sort(a.sort) })); // 未架電の件数・一覧には D.alertSkip（例：フォームの対象判定が対象外）のリードを数えない（2026-11-18）
 }
 
 // ====================== 描画 ======================
