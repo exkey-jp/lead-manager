@@ -218,7 +218,7 @@ const yenS = n => (n == null || !isFinite(n)) ? '-' : Math.abs(n) >= 1e6 ? '¥' 
 const man = n => (n == null || !isFinite(n)) ? '-' : (Math.abs(n) >= 1e4 ? (Math.round(n / 1e3) / 10).toLocaleString() + '万' : Math.round(n).toLocaleString()) ;
 const pct = (a, b) => b ? (a / b * 100).toFixed(1) + '%' : '-';
 const num = v => { const n = Number(String(v == null ? '' : v).replace(/[,¥円\s]/g, '')); return isFinite(n) ? n : 0; };
-const toD = s => { if (!s) return null; const m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2}))?/); return m ? new Date(`${m[1]}-${m[2]}-${m[3]}T${m[4] || '00'}:${m[5] || '00'}:00+09:00`) : null; };
+const toD = s => { if (!s) return null; const m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{1,2}):(\d{2}))?/); return m ? new Date(`${m[1]}-${m[2]}-${m[3]}T${p2(m[4] || 0)}:${m[5] || '00'}:00+09:00`) : null; }; // 時が1桁（「6:24」）でも読む（2026-11-20）
 const p2 = n => ('0' + n).slice(-2);
 const jst = d => { const x = new Date(d.getTime() + 9 * 3600e3); return { y: x.getUTCFullYear(), m: x.getUTCMonth() + 1, d: x.getUTCDate(), h: x.getUTCHours(), mi: x.getUTCMinutes(), w: x.getUTCDay() }; };
 const fmt = d => { const j = jst(d); return `${j.y}-${p2(j.m)}-${p2(j.d)} ${p2(j.h)}:${p2(j.mi)}`; };
@@ -366,6 +366,9 @@ function prep() {
     // 何回目の架電でアポが取れたか
     const cs = callsBy[l['リードID']] || [];
     l._hist = cs; // 架電履歴（古い順・積み上げ）
+    // 架電回数を対応履歴から数える会社（D.callsFromLog。2026-11-20）：スプシで入れた架電とダッシュボードで入れた架電を合算。
+    // SMS と、日時・結果がまったく同じ行（二重に入った取込）は数えない。シートの架電数のほうが多ければそちら（履歴を書かずに架電数だけ増やした場合）
+    if (D.callsFromLog) { const seen = new Set(); cs.forEach(g => { if (!(g[4] === 'その他' && g[5] === 'SMS')) seen.add(g[0] + '|' + g[4] + '|' + g[5]); }); l['架電回数'] = Math.max(num(l['架電回数']), seen.size); }
     const ai = cs.findIndex(g => g[4] === 'アポ');
     l._apoCallNo = ai >= 0 ? ai + 1 : null;
   });
@@ -390,7 +393,7 @@ function alerts() {
     { k: 'new', c: 'blu', t: '新着（未架電）', d: `${warn}分以内・受付時間外`, f: l => l['ステータス'] === '未対応' && l._wait < warn, sort: (a, b) => b._recv - a._recv },
     { k: 'over', c: 'red', t: '再架電 期限切れ', d: '次回架電予定を過ぎている', f: l => l['ステータス'] === '追客中' && nx(l) && nx(l) < now && fmt(nx(l)).slice(0, 10) < t0, sort: (a, b) => nx(a) - nx(b) },
     { k: 'today', c: 'yel', t: '今日の再架電', d: '次回架電予定が今日', f: l => l['ステータス'] === '追客中' && nx(l) && fmt(nx(l)).slice(0, 10) === t0, sort: (a, b) => nx(a) - nx(b) },
-    { k: 'stale', c: 'yel', t: '追客が止まっている', d: `予定なし・最終架電から${stale}日以上`, f: l => l['ステータス'] === '追客中' && !l['次回架電予定'] && l['最終架電結果'] !== 'その他/SMS' && num(l['架電回数']) < maxCall && (now - toD(l['最終架電日時'])) / 864e5 >= stale /* SMSを送ったリードは休眠扱い（2026-11-18 アマネライフ様。次の架電結果が入ると戻る） */, sort: (a, b) => toD(a['最終架電日時']) - toD(b['最終架電日時']) },
+    { k: 'stale', c: 'yel', t: '追客が止まっている', d: `予定なし・最終架電から${stale}日以上`, f: l => l['ステータス'] === '追客中' && !l['次回架電予定'] && l['最終架電結果'] !== 'その他/SMS' && num(l['架電回数']) < maxCall && (now - toD(l['最終架電日時'])) / 864e5 >= stale /* SMSを送ったリードは休眠扱い（2026-11-18。次の架電結果が入ると戻る） */, sort: (a, b) => toD(a['最終架電日時']) - toD(b['最終架電日時']) },
     { k: 'apo', c: 'blu', t: '今日・明日のアポ', d: '商談の準備・前日確認', f: l => l['ステータス'] === 'アポ獲得' && l['アポ日時'] && [t0, tomorrow].includes(l['アポ日時'].slice(0, 10)), sort: (a, b) => toD(a['アポ日時']) - toD(b['アポ日時']) },
     { k: 'nores', c: 'red', t: '商談結果 未入力', d: 'アポ日を過ぎて結果が未入力', f: l => l['商談ステータス'] === DM().BEFORE && l['アポ日時'] && l['アポ日時'].slice(0, 10) < t0, sort: (a, b) => toD(a['アポ日時']) - toD(b['アポ日時']) },
     ...(DM().ABSENT ? [{ k: 'absent', c: 'red', t: DM().ABSENT, d: '商談が留守だった（再アポの架電）', f: l => l['商談ステータス'] === DM().ABSENT, sort: (a, b) => toD(a['アポ日時']) - toD(b['アポ日時']) }] : []),
@@ -794,6 +797,45 @@ function timeAnalysis(L, months, id) {
   return { html, draw };
 }
 
+// 架電した時間帯別（何時に電話してつながった・アポが取れたか）。L＝対象のリード（prep済み）。ログの日時で集計（2026-11-20）
+// SMS・時刻のない記録（日付だけ・0:00）は数えない
+function callTimeAnalysis(L, id) {
+  const CONN = new Set(((D.master && D.master.results) || []).filter(r => r.connect).map(r => r.cat + '/' + r.val));
+  const H = [...Array(24).keys()].map(h => ({ h, calls: 0, conn: 0, apo: 0 }));
+  let n = 0;
+  L.forEach(l => (l._hist || []).forEach(g => {
+    if (g[4] === 'その他' && g[5] === 'SMS') return;
+    const s = String(g[0] || '');
+    if (!/\d{1,2}:\d{2}/.test(s) || /\s0?0:00(:00)?$/.test(s) || /^1899/.test(s)) return;
+    const d = toD(s); if (!d) return;
+    const x = H[d.getHours()]; x.calls++; n++;
+    if (g[4] === 'アポ' || g[4] === '断り' || CONN.has(g[4] + '/' + g[5])) x.conn++;
+    if (g[4] === 'アポ') x.apo++;
+  }));
+  const rows = H.filter(x => x.calls);
+  const html = `
+  <h2>架電した時間帯の分析 <span class="sub sm">架電した日時で集計（${n}回）</span></h2>
+  <div class="note">※ 何時に電話して、本人とつながったか・アポが取れたかを見る表です。接続率＝本人と話せた架電÷架電数、アポ率＝アポが取れた架電÷架電数。SMSと、時刻の記録がない架電は除いています。</div>
+  <div class="grid two">
+    <div class="card"><h3>架電した時間帯別</h3><canvas id="${id}Hour" height="220"></canvas></div>
+    <div class="card"><h3>架電した時間帯別（表）</h3><div class="tblwrap" style="max-height:330px"><table><thead><tr><th>時間帯</th><th class="num">架電数</th><th class="num">接続</th><th class="num">接続率</th><th class="num">アポ</th><th class="num">アポ率</th></tr></thead><tbody>${rows.length ? rows.map(x => `<tr><td>${x.h}時台</td><td class="num b">${x.calls}</td><td class="num">${x.conn}</td><td class="num">${pct(x.conn, x.calls)}</td><td class="num">${x.apo}</td><td class="num">${pct(x.apo, x.calls)}</td></tr>`).join('') : '<tr><td colspan="6" class="sub">架電の記録がありません</td></tr>'}</tbody></table></div></div>
+  </div>`;
+  const draw = () => {
+    if (!window.Chart || !document.getElementById(id + 'Hour') || !rows.length) return;
+    const from = Math.min(...rows.map(x => x.h)), to = Math.max(...rows.map(x => x.h)), R = H.slice(from, to + 1);
+    charts.push(new Chart(document.getElementById(id + 'Hour'), {
+      data: { labels: R.map(x => x.h + '時'), datasets: [
+        { type: 'line', label: '接続率', data: R.map(x => x.calls ? +(x.conn / x.calls * 100).toFixed(1) : null), yAxisID: 'y2', borderColor: '#2f9e6b', backgroundColor: '#2f9e6b', spanGaps: true, order: 0 },
+        { type: 'line', label: 'アポ率', data: R.map(x => x.calls ? +(x.apo / x.calls * 100).toFixed(1) : null), yAxisID: 'y2', borderColor: '#e8710a', backgroundColor: '#e8710a', spanGaps: true, order: 0 },
+        { type: 'bar', label: '架電数', data: R.map(x => x.calls), backgroundColor: '#c6d4ff', order: 2 },
+        { type: 'bar', label: 'アポ', data: R.map(x => x.apo), backgroundColor: '#1f5eff', order: 1 },
+      ] },
+      options: { responsive: true, interaction: { mode: 'index', intersect: false }, scales: { y: { beginAtZero: true, title: { display: true, text: '回' } }, y2: { position: 'right', beginAtZero: true, grid: { display: false }, ticks: { callback: v => v + '%' } } } },
+    }));
+  };
+  return { html, draw };
+}
+
 function renderAna() {
   const F = UI.ana;
   const allMons = [...new Set(D.leads.map(l => l._ym).concat(D.adcost.map(c => c.ym)))].sort();
@@ -904,6 +946,7 @@ function renderAna() {
     ansHtml = Object.entries(qs).map(([q, as]) => `<div style="margin-bottom:14px"><div class="b sm" style="margin-bottom:4px">${esc(q)}</div><table><thead><tr><th>回答</th><th class="num">有効リード</th><th class="num">アポ</th><th class="num">アポ率</th><th class="num">成約</th></tr></thead><tbody>${Object.entries(as).sort((a, b) => b[1].n - a[1].n).map(([a, o]) => `<tr><td>${esc(a)}</td><td class="num">${o.n}</td><td class="num">${o.apo}</td><td class="num b">${pct(o.apo, o.n)}</td><td class="num">${o.won}</td></tr>`).join('')}</tbody></table></div>`).join('') || '<div class="sub sm">回答データがありません</div>';
   }
   const TA = timeAnalysis(L, months, 'ta');
+  const CT = callTimeAnalysis(L, 'ct');
   const fun = [['リード', M.n], ['有効リード', M.valid], ['本人と接続', M.validConn], ['アポ', M.apo], [(D.dealRule && D.dealRule.label) || '商談実施', M.deal], ['成約', M.won]];
   const funMax = Math.max(1, M.n);
 
@@ -955,6 +998,7 @@ function renderAna() {
     <div class="card"><h3>都道府県別</h3><div class="tblwrap" style="max-height:320px"><table><thead><tr><th>都道府県</th><th class="num">リード</th><th class="num">有効リード</th><th class="num">アポ</th><th class="num">アポ率</th><th class="num">成約</th><th class="num">売上</th></tr></thead><tbody>${Object.entries(prefs).sort((a, b) => b[1].all - a[1].all || b[1].n - a[1].n).map(([p, o]) => `<tr><td>${esc(p)}</td><td class="num">${o.all}</td><td class="num">${o.n}</td><td class="num">${o.apo}</td><td class="num b">${pct(o.apo, o.n)}</td><td class="num">${o.won}</td><td class="num">${yen(o.sales)}</td></tr>`).join('') || '<tr><td colspan="7" class="empty">データなし</td></tr>'}</tbody></table></div><div class="note">リード＝すべて（スプレッドシートの件数と同じ）。有効リード＝${esc((D.validRule && D.validRule.label) || '')}。アポ率は有効リードに対して。</div></div>
   </div>
   ${TA.html}
+  ${CT.html}
   <h2>アンケート回答別 ${F.camp ? '— ' + esc(campName(F.camp)) : ''}</h2>
   <div class="card">${ansHtml}</div>`;
 
@@ -970,6 +1014,7 @@ function renderAna() {
   });
   charts.forEach(c => c.destroy()); charts = [];
   TA.draw();
+  CT.draw();
   if (window.Chart) {
     charts.push(new Chart($('#chMon'), {
       data: { labels: series.map(x => x.ym), datasets: [
