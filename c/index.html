@@ -334,6 +334,9 @@ function prep() {
   const callsBy = {}, CONN_ = new Set(((D.master && D.master.results) || []).filter(r => r.connect).map(r => r.cat + '/' + r.val));
   D.logs.forEach(g => { if (g[2] === '架電') (callsBy[g[1]] = callsBy[g[1]] || []).push(g); });
   Object.values(callsBy).forEach(a => a.sort((x, y) => String(x[0]).localeCompare(String(y[0]))));
+  // 失注を商談に数えるには、その前の段階（例：クロージング）の対応履歴が要る会社（dealRule.lostNeeds）
+  const LN = (D.dealRule && D.dealRule.lostNeeds) || null, stageBy = {};
+  if (LN) D.logs.forEach(g => { if (LN.includes(g[4]) || LN.includes(g[5])) stageBy[g[1]] = true; });
   D.leads.forEach(l => {
     const r = toD(l['受信日時']);
     l._recv = r; l._ym = l['受信日時'].slice(0, 7);
@@ -349,7 +352,7 @@ function prep() {
     l._conn = l['接続済'] === true || l['接続済'] === 'TRUE' || l['接続済'] === 'true';
     if (l._conn) { const g = (callsBy[l['リードID']] || []).find(g => g[4] === 'アポ' || g[4] === '断り' || CONN_.has(g[4] + '/' + g[5])); l._connAt = String((g && g[0]) || l['アポ獲得日'] || l['初回架電日時'] || l['最終架電日時'] || l['受信日時']); }
     const DF = D.dealRule && D.dealRule.dateField; // 商談日の列がある会社は「商談日が入っている＝商談あり」（商談結果がツブレでも数える）
-    l._dealDone = DF ? !!l[DF] : ((D.dealRule && D.dealRule.count) || dealMid().concat([DM().WON, DM().LOST])).includes(l['商談ステータス']);
+    l._dealDone = DF ? !!l[DF] : ((D.dealRule && D.dealRule.count) || dealMid().concat([DM().WON, DM().LOST])).includes(l['商談ステータス']) && !(LN && l['商談ステータス'] === DM().LOST && !stageBy[l['リードID']] && !LN.includes(l['商談ステータス']));
     l._dealMon = String((DF ? l[DF] : '') || l['商談実施日'] || l['アポ日時'] || l['アポ獲得日'] || '').slice(0, 7);
     l._won = l['ステータス'] === '成約' || l['商談ステータス'] === '成約';
     l._sales = l._won ? num(l['売上']) : 0;
