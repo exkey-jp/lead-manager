@@ -57,7 +57,7 @@ tr.dup td{background:#262626!important;color:#9a9a9a}tr.dup td b{color:#bbb}tr.d
 .prog thead tr:nth-child(2) th{top:30px}
 .prog td.dl{background:#faf7ff} .prog td.cl{background:#f6f9ff} .prog td.dl.first,.prog th.dl.first{border-left:3px solid var(--pur)} .prog td.cl.first,.prog th.cl.first{border-left:3px solid var(--pri)}
 .dst{display:inline-block;padding:1px 8px;border-radius:10px;font-size:12px;font-weight:700;background:var(--graybg);color:#444}
-.dst.商談前{background:var(--pri2);color:var(--pri)} .dst.成約{background:var(--grnbg);color:var(--grn)} .dst.失注{background:var(--graybg);color:#444} .dst.ツブレ{background:var(--yelbg);color:var(--yel)} .dst.検討中,.dst.現調・見積中{background:var(--purbg);color:var(--pur)}
+.dst.商談前,.dst.WEB商談{background:var(--pri2);color:var(--pri)} .dst.WEB商談留守,.dst.訪問前キャンセル{background:var(--yelbg);color:var(--yel)} .dst.クロージング,.dst.再訪,.dst.クロージング留守{background:var(--purbg);color:var(--pur)} .dst.成約{background:var(--grnbg);color:var(--grn)} .dst.失注{background:var(--graybg);color:#444} .dst.ツブレ{background:var(--yelbg);color:var(--yel)} .dst.検討中,.dst.現調・見積中{background:var(--purbg);color:var(--pur)}
 .seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden} .seg button{border:0;background:#fff;padding:6px 12px;font:inherit;cursor:pointer;color:var(--sub)} .seg button.on{background:var(--pri);color:#fff}
 .tag{font-size:11px;padding:0 6px;border-radius:4px;background:var(--graybg);color:var(--sub)}
 .tag.live{background:var(--grnbg);color:var(--grn);font-weight:700} .tag.stop{background:var(--graybg);color:var(--gray)}
@@ -218,7 +218,7 @@ const yenS = n => (n == null || !isFinite(n)) ? '-' : Math.abs(n) >= 1e6 ? '¥' 
 const man = n => (n == null || !isFinite(n)) ? '-' : (Math.abs(n) >= 1e4 ? (Math.round(n / 1e3) / 10).toLocaleString() + '万' : Math.round(n).toLocaleString()) ;
 const pct = (a, b) => b ? (a / b * 100).toFixed(1) + '%' : '-';
 const num = v => { const n = Number(String(v == null ? '' : v).replace(/[,¥円\s]/g, '')); return isFinite(n) ? n : 0; };
-const toD = s => { if (!s) return null; const m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2}))?/); return m ? new Date(`${m[1]}-${m[2]}-${m[3]}T${m[4] || '00'}:${m[5] || '00'}:00+09:00`) : null; };
+const toD = s => { if (!s) return null; const m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{1,2}):(\d{2}))?/); return m ? new Date(`${m[1]}-${m[2]}-${m[3]}T${p2(m[4] || 0)}:${m[5] || '00'}:00+09:00`) : null; }; // 時が1桁（「6:24」）でも読む（2026-11-20）
 const p2 = n => ('0' + n).slice(-2);
 const jst = d => { const x = new Date(d.getTime() + 9 * 3600e3); return { y: x.getUTCFullYear(), m: x.getUTCMonth() + 1, d: x.getUTCDate(), h: x.getUTCHours(), mi: x.getUTCMinutes(), w: x.getUTCDay() }; };
 const fmt = d => { const j = jst(d); return `${j.y}-${p2(j.m)}-${p2(j.d)} ${p2(j.h)}:${p2(j.mi)}`; };
@@ -331,9 +331,12 @@ function prep() {
     if (t >= ch * 60 + cm) return new Date(base + 864e5 + (oh * 60 + om) * 60e3);
     return d;
   };
-  const callsBy = {};
+  const callsBy = {}, CONN_ = new Set(((D.master && D.master.results) || []).filter(r => r.connect).map(r => r.cat + '/' + r.val));
   D.logs.forEach(g => { if (g[2] === '架電') (callsBy[g[1]] = callsBy[g[1]] || []).push(g); });
   Object.values(callsBy).forEach(a => a.sort((x, y) => String(x[0]).localeCompare(String(y[0]))));
+  // 失注を商談に数えるには、その前の段階（例：クロージング）の対応履歴が要る会社（dealRule.lostNeeds。2026-11-24 アマネライフ様）
+  const LN = (D.dealRule && D.dealRule.lostNeeds) || null, stageBy = {};
+  if (LN) D.logs.forEach(g => { if (LN.includes(g[4]) || LN.includes(g[5])) stageBy[g[1]] = true; });
   D.leads.forEach(l => {
     const r = toD(l['受信日時']);
     l._recv = r; l._ym = l['受信日時'].slice(0, 7);
@@ -345,8 +348,11 @@ function prep() {
     l._resp = f && l._start ? Math.max(0, (f - l._start) / 60e3) : null;
     // 進捗表に商談日（M列）がある先は商談済み＝アポ済みなので、架電シートの結果にかかわらずアポとして数える
     l._apo = !!(l['アポ日時'] || l['アポ獲得日'] || l['進捗_商談日']);
+    // 接続した日（発生月で見るときの接続数に使う）：つながった最初の架電（アポ・断り・接続扱いの結果）の日。ログがなければアポ獲得日→初回架電日時
+    l._conn = l['接続済'] === true || l['接続済'] === 'TRUE' || l['接続済'] === 'true';
+    if (l._conn) { const g = (callsBy[l['リードID']] || []).find(g => g[4] === 'アポ' || g[4] === '断り' || CONN_.has(g[4] + '/' + g[5])); l._connAt = String((g && g[0]) || l['アポ獲得日'] || l['初回架電日時'] || l['最終架電日時'] || l['受信日時']); }
     const DF = D.dealRule && D.dealRule.dateField; // 商談日の列がある会社は「商談日が入っている＝商談あり」（商談結果がツブレでも数える）
-    l._dealDone = DF ? !!l[DF] : ((D.dealRule && D.dealRule.count) || ['現調・見積中', '検討中', '成約', '失注']).includes(l['商談ステータス']);
+    l._dealDone = DF ? !!l[DF] : ((D.dealRule && D.dealRule.count) || dealMid().concat([DM().WON, DM().LOST])).includes(l['商談ステータス']) && !(LN && l['商談ステータス'] === DM().LOST && !stageBy[l['リードID']] && !LN.includes(l['商談ステータス']));
     l._dealMon = String((DF ? l[DF] : '') || l['商談実施日'] || l['アポ日時'] || l['アポ獲得日'] || '').slice(0, 7);
     l._won = l['ステータス'] === '成約' || l['商談ステータス'] === '成約';
     l._sales = l._won ? num(l['売上']) : 0;
@@ -363,6 +369,9 @@ function prep() {
     // 何回目の架電でアポが取れたか
     const cs = callsBy[l['リードID']] || [];
     l._hist = cs; // 架電履歴（古い順・積み上げ）
+    // 架電回数を対応履歴から数える会社（D.callsFromLog。2026-11-20）：スプシで入れた架電とダッシュボードで入れた架電を合算。
+    // SMS と、日時・結果がまったく同じ行（二重に入った取込）は数えない。シートの架電数のほうが多ければそちら（履歴を書かずに架電数だけ増やした場合）
+    if (D.callsFromLog) { const seen = new Set(); cs.forEach(g => { if (!(g[4] === 'その他' && g[5] === 'SMS')) seen.add(g[0] + '|' + g[4] + '|' + g[5]); }); l['架電回数'] = Math.max(num(l['架電回数']), seen.size); }
     const ai = cs.findIndex(g => g[4] === 'アポ');
     l._apoCallNo = ai >= 0 ? ai + 1 : null;
   });
@@ -372,6 +381,8 @@ function prep() {
 }
 
 // ====================== アラート ======================
+// D.alertSkip（例：{対象判定:'対象外'}）に当てはまるリードか
+const alertSkip_ = l => { const SK = D.alertSkip || {}; return Object.keys(SK).some(k => String((l._ans || {})[k] || '').trim() === SK[k]); };
 function alerts() {
   const S = D.settings, now = Date.now(), t0 = today();
   const warn = num(S['初回架電の目標(分)']) || 30, red = num(S['初回架電の警告(分)']) || 120;
@@ -385,12 +396,13 @@ function alerts() {
     { k: 'new', c: 'blu', t: '新着（未架電）', d: `${warn}分以内・受付時間外`, f: l => l['ステータス'] === '未対応' && l._wait < warn, sort: (a, b) => b._recv - a._recv },
     { k: 'over', c: 'red', t: '再架電 期限切れ', d: '次回架電予定を過ぎている', f: l => l['ステータス'] === '追客中' && nx(l) && nx(l) < now && fmt(nx(l)).slice(0, 10) < t0, sort: (a, b) => nx(a) - nx(b) },
     { k: 'today', c: 'yel', t: '今日の再架電', d: '次回架電予定が今日', f: l => l['ステータス'] === '追客中' && nx(l) && fmt(nx(l)).slice(0, 10) === t0, sort: (a, b) => nx(a) - nx(b) },
-    { k: 'stale', c: 'yel', t: '追客が止まっている', d: `予定なし・最終架電から${stale}日以上`, f: l => l['ステータス'] === '追客中' && !l['次回架電予定'] && num(l['架電回数']) < maxCall && (now - toD(l['最終架電日時'])) / 864e5 >= stale, sort: (a, b) => toD(a['最終架電日時']) - toD(b['最終架電日時']) },
+    { k: 'stale', c: 'yel', t: '追客が止まっている', d: `予定なし・最終架電から${stale}日以上`, f: l => l['ステータス'] === '追客中' && !l['次回架電予定'] && l['最終架電結果'] !== 'その他/SMS' && num(l['架電回数']) < maxCall && (now - toD(l['最終架電日時'])) / 864e5 >= stale /* SMSを送ったリードは休眠扱い（2026-11-18。次の架電結果が入ると戻る） */, sort: (a, b) => toD(a['最終架電日時']) - toD(b['最終架電日時']) },
     { k: 'apo', c: 'blu', t: '今日・明日のアポ', d: '商談の準備・前日確認', f: l => l['ステータス'] === 'アポ獲得' && l['アポ日時'] && [t0, tomorrow].includes(l['アポ日時'].slice(0, 10)), sort: (a, b) => toD(a['アポ日時']) - toD(b['アポ日時']) },
-    { k: 'nores', c: 'red', t: '商談結果 未入力', d: 'アポ日を過ぎて結果が未入力', f: l => l['商談ステータス'] === '商談前' && l['アポ日時'] && l['アポ日時'].slice(0, 10) < t0, sort: (a, b) => toD(a['アポ日時']) - toD(b['アポ日時']) },
+    { k: 'nores', c: 'red', t: '商談結果 未入力', d: 'アポ日を過ぎて結果が未入力', f: l => l['商談ステータス'] === DM().BEFORE && l['アポ日時'] && l['アポ日時'].slice(0, 10) < t0, sort: (a, b) => toD(a['アポ日時']) - toD(b['アポ日時']) },
+    ...(DM().ABSENT ? [{ k: 'absent', c: 'red', t: DM().ABSENT, d: '商談が留守だった（再アポの架電）', f: l => l['商談ステータス'] === DM().ABSENT, sort: (a, b) => toD(a['アポ日時']) - toD(b['アポ日時']) }] : []),
     { k: 'consider', c: 'yel', t: '検討中のフォロー', d: `見積・検討中で${fol}日以上更新なし`, f: l => l['ステータス'] === '商談中' && (now - toD(l['更新日時'])) / 864e5 >= fol, sort: (a, b) => toD(a['更新日時']) - toD(b['更新日時']) },
     { k: 'long', c: '', t: '長期追客', d: `架電${maxCall}回以上で追客中`, f: l => l['ステータス'] === '追客中' && num(l['架電回数']) >= maxCall, sort: (a, b) => num(b['架電回数']) - num(a['架電回数']) },
-  ].map(a => Object.assign(a, { list: L.filter(a.f).sort(a.sort) }));
+  ].map(a => Object.assign(a, { list: L.filter(l => a.f(l) && !(['new_red', 'new_yel', 'new'].includes(a.k) && alertSkip_(l))).sort(a.sort) })); // 未架電の件数・一覧には D.alertSkip（例：フォームの対象判定が対象外）のリードを数えない（2026-11-18）
 }
 
 // ====================== 描画 ======================
@@ -399,7 +411,7 @@ function render() {
   document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.p === UI.page));
   ['home', 'list', 'ana', 'set'].forEach(p => $('#p-' + p).hidden = p !== UI.page);
   const A = alerts();
-  const urgent = A.filter(a => ['new_red', 'new_yel', 'over', 'nores'].includes(a.k)).reduce((s, a) => s + a.list.length, 0);
+  const urgent = A.filter(a => ['new_red', 'new_yel', 'over', 'nores', 'absent'].includes(a.k)).reduce((s, a) => s + a.list.length, 0);
   $('#navBadge').style.display = urgent ? '' : 'none'; $('#navBadge').textContent = urgent;
   if (UI.page === 'home') renderHome(A);
   if (UI.page === 'list') renderList();
@@ -409,22 +421,28 @@ function render() {
 
 function stBadge(s) { return `<span class="st st-${esc(s)}">${esc(s)}</span>`; }
 
+// 商談ステータスの名前は会社ごと（サーバーの DEAL を dealMap で受け取る。例：WEB商談・クロージング・再訪…）
+const DM = () => Object.assign({ BEFORE: '商談前', SURVEY: '現調・見積中', CONSIDER: '検討中', WON: '成約', LOST: '失注', CANCEL: 'ツブレ' }, (typeof D !== 'undefined' && D && D.dealMap) || {});
+const dealNG = () => [DM().CANCEL, DM().ABSENT].filter(Boolean); // 商談に至らなかった（ツブレ・訪問前キャンセル・WEB商談留守）
+const dealMid = () => [DM().SURVEY, DM().CONSIDER, DM().ABSENT2].filter(Boolean); // 商談後で結果待ち
+// 表示用の商談ステータス：PRE（アポ前の「商談前」）がある会社は、アポ前の未対応・追客中にそれを出す
+const dealOf = l => l['商談ステータス'] || (DM().PRE && !l._apo && ['未対応', '追客中'].includes(l['ステータス']) ? DM().PRE : '');
 // 行の色：重複＝黒塗り、失注・NG・ツブレ・断り・対象外＝グレーアウト
 // 進捗表の最新の商談結果（商談再訪結果があればそちら）
 const lastRes = l => String(l['進捗_再訪結果'] || l['進捗_商談結果'] || '');
-const isLost = l => ['失注', '断り', '対象外'].includes(l['ステータス']) || ['失注', 'ツブレ'].includes(l['商談ステータス']) || /NG|失注|ツブレ/i.test(String(lastRes(l)));
+const isLost = l => ['失注', '断り', '対象外'].includes(l['ステータス']) || [DM().LOST, DM().CANCEL].includes(l['商談ステータス']) || /NG|失注|ツブレ/i.test(String(lastRes(l)));
 const rowCls = l => l['ステータス'] === '重複' ? 'dup' : isLost(l) ? 'lost' : '';
 // スマホ用：1リード＝1枚のカード。右の📞で発信（同時に詳細も開くので、通話後すぐ結果を記録できる）
 function mCards(list, why) {
   if (!list.length) return `<div class="empty">該当するリードはありません</div>`;
   return `<div class="mcards">${list.map(l => {
-    const nx = toD(l['次回架電予定']), unt = l['ステータス'] === '未対応';
+    const nx = toD(l['次回架電予定']), unt = l['ステータス'] === '未対応' && !alertSkip_(l); // フォームで対象外のリードは経過を赤くしない
     const r2 = [campName(l['訴求']), l['都道府県'], num(l['架電回数']) ? `架電${num(l['架電回数'])}回` : '', String(l['最終架電結果'] || '').replace(/^[^/]*\//, '')].filter(Boolean).map(esc).join('・');
     const r3 = [unt ? `<span class="${l._wait >= num(D.settings['初回架電の警告(分)']) ? 'red b' : l._wait >= num(D.settings['初回架電の目標(分)']) ? 'yel b' : ''}">取得 ${md(l['受信日時'])}（${l._wait <= 0 ? '受付時間前' : ago(l._wait) + '経過'}）</span>` : `取得 ${md(l['受信日時'])}`,
       nx ? `<span class="${nx < Date.now() ? 'red b' : ''}">次回 ${md(l['次回架電予定'])}</span>` : '', l['アポ日時'] ? `${isVisit() ? '訪問' : 'アポ'} ${md(l['アポ日時'])}` : '', l['メモ'] ? esc(String(l['メモ']).split('\n')[0]) : ''].filter(Boolean).join('　');
     return `<div class="mcard ${rowCls(l)}" data-id="${l['リードID']}"><div class="mc">
       ${why && l._why ? `<div class="why ${l._c === 'red' ? 'red' : l._c === 'yel' ? 'yel' : ''}">${esc(l._why)}</div>` : ''}
-      <div class="r1"><b>${esc(l['氏名'])}</b>${stBadge(l['ステータス'])}${l._notHouse ? '<span class="nh">戸建て以外</span>' : ''}${l._areaOut ? '<span class="nh">エリア外</span>' : ''}</div>
+      <div class="r1"><b>${esc(l['氏名'])}</b>${D.genderOn && l['性別'] ? `<span class="sub sm">（${esc(l['性別'])}）</span>` : ''}${stBadge(l['ステータス'])}${l._notHouse ? '<span class="nh">戸建て以外</span>' : ''}${l._areaOut ? '<span class="nh">エリア外</span>' : ''}</div>
       <div class="r2">${r2}</div><div class="r3">${r3}</div></div>
       ${l['電話番号'] ? `<a class="mtel" href="tel:${esc(l['電話番号'])}" data-tel="${l['リードID']}" aria-label="電話する">📞</a>` : ''}</div>`;
   }).join('')}</div>`;
@@ -436,9 +454,10 @@ function leadRows(list, cols) {
   if (MOB()) return mCards(list);
   const C = {
     recv: ['リード取得日', l => `${md(l['受信日時'])}`],
-    wait: ['経過', l => l['ステータス'] === '未対応' ? `<span class="${l._wait >= num(D.settings['初回架電の警告(分)']) ? 'red b' : l._wait >= num(D.settings['初回架電の目標(分)']) ? 'yel b' : ''}">${l._wait <= 0 ? '受付時間前' : ago(l._wait)}</span>` : (l._resp != null ? `<span class="sub" title="初回架電までの時間">${ago(l._resp)}</span>` : '')],
+    wait: ['経過', l => l['ステータス'] === '未対応' && alertSkip_(l) ? '<span class="sub" title="フォームの回答で対象外。架電の対象外">フォーム対象外</span>' : l['ステータス'] === '未対応' ? `<span class="${l._wait >= num(D.settings['初回架電の警告(分)']) ? 'red b' : l._wait >= num(D.settings['初回架電の目標(分)']) ? 'yel b' : ''}">${l._wait <= 0 ? '受付時間前' : ago(l._wait)}</span>` : (l._resp != null ? `<span class="sub" title="初回架電までの時間">${ago(l._resp)}</span>` : '')],
     camp: ['訴求', l => `<span class="sm" title="${esc(campName(l['訴求']))}">${esc(campName(l['訴求']))}</span>`],
     name: ['氏名', l => `<b>${esc(l['氏名'])}</b>${l._notHouse ? '<span class="nh">戸建て以外</span>' : ''}${l._areaOut ? '<span class="nh">エリア外</span>' : ''}`],
+    gender: ['性別', l => esc(l['性別'] || '')], // 性別の列がある会社だけ（D.genderOn）
     pref: ['都道府県', l => esc(l['都道府県'])],
     tel: ['電話番号', l => esc(l['電話番号'])],
     st: ['ステータス', l => stBadge(l['ステータス'])],
@@ -451,7 +470,7 @@ function leadRows(list, cols) {
     apo: [isVisit() ? '初回訪問日' : 'アポ日時', l => md(l['アポ日時'])],
     ddate: ['商談実施日', l => md(String(l['商談実施日'] || '').slice(0, 16))],
     quote: ['見積金額', l => l['見積金額'] !== '' && l['見積金額'] != null ? yen(num(l['見積金額'])) : ''],
-    deal: ['商談', l => esc(l['商談ステータス'])],
+    deal: ['商談', l => esc(dealOf(l))],
     dres: ['商談結果', l => `<span class="sm">${esc(l['進捗_商談結果'] || '')}</span>`], // 進捗表の商談結果
     v1d: ['初訪日', l => md(String(l['進捗_初訪日'] || '').slice(0, 10))],
     v1r: ['初訪結果', l => `<span class="sm">${esc(l['進捗_訪問結果'] || '')}</span>`],
@@ -471,10 +490,10 @@ function leadRows(list, cols) {
 // 進捗ビュー：左＝アポ取得進捗（架電〜アポ取得）、右＝商談進捗（アポ後）。1行で両方を追える
 function progRows(list, showCamp) {
   if (!list.length) return `<div class="empty">該当するリードはありません</div>`;
-  const lead = [['リード取得日', l => md(l['受信日時'])], ['氏名', l => `<b>${esc(l['氏名'])}</b>${l._notHouse ? '<span class="nh">戸建て以外</span>' : ''}${l._areaOut ? '<span class="nh">エリア外</span>' : ''}`]]
+  const lead = [['リード取得日', l => md(l['受信日時'])], ['氏名', l => `<b>${esc(l['氏名'])}</b>${l._notHouse ? '<span class="nh">戸建て以外</span>' : ''}${l._areaOut ? '<span class="nh">エリア外</span>' : ''}`]].concat(D.genderOn ? [['性別', l => esc(l['性別'] || '')]] : [])
     .concat(showCamp ? [['訴求', l => `<span class="sm">${esc(campName(l['訴求']))}</span>`]] : []).concat([['電話番号', l => esc(l['電話番号'])], ['ステータス', l => stBadge(l['ステータス'])]]);
   const deal = isVisit() ? [
-    ['商談', l => l['商談ステータス'] ? `<span class="dst ${esc(l['商談ステータス'])}">${esc(l['商談ステータス'])}</span>` : (l._apo ? '' : '<span class="sub sm">―</span>')],
+    ['商談', l => dealOf(l) ? `<span class="dst ${esc(dealOf(l))}">${esc(dealOf(l))}</span>` : (l._apo ? '' : '<span class="sub sm">―</span>')],
     ['初回訪問日', l => md(String(l['アポ日時'] || ''))],
     ['商談実施日', l => md(String(l['商談実施日'] || '').slice(0, 16))],
     ['再訪日', l => md(String(l['進捗_再訪日'] || '').slice(0, 16))],
@@ -483,7 +502,7 @@ function progRows(list, showCamp) {
     ['見積金額', l => l['見積金額'] !== '' && l['見積金額'] != null ? yen(num(l['見積金額'])) : ''],
     ['成約金額', l => l._won ? `<b>${yen(l._sales)}</b>` : ''],
   ] : [
-    ['商談', l => l['商談ステータス'] ? `<span class="dst ${esc(l['商談ステータス'])}">${esc(l['商談ステータス'])}</span>` : (l._apo ? '' : '<span class="sub sm">―</span>')],
+    ['商談', l => dealOf(l) ? `<span class="dst ${esc(dealOf(l))}">${esc(dealOf(l))}</span>` : (l._apo ? '' : '<span class="sub sm">―</span>')],
   ].concat(D.leads.some(l => l['進捗_商談結果']) ? [['商談結果', l => `<span class="sm">${esc(l['進捗_商談結果'] || '')}</span>`]] : []).concat([
     ['訪問・商談日', l => md(String(l['アポ日時'] || l['商談実施日'] || ''))],
     ['営業担当', l => esc(l['営業担当'])],
@@ -540,7 +559,7 @@ function renderHome(A) {
   <h2>やること（アラート）</h2>
   <div class="grid alerts">${A.map(a => `<div class="card al ${a.c} ${a.list.length ? '' : 'zero'} ${UI.alert === a.k ? 'on' : ''}" data-al="${a.k}"><div class="t">${a.t}</div><div class="n">${a.list.length}</div><div class="d">${a.d}</div></div>`).join('')}</div>
   <h2>${sel ? esc(sel.t) + ' の一覧 <button class="btn sm" data-al="all">すべての要対応に戻す</button>' : '要対応のリード（未架電・期限切れ・止まっている追客・結果未入力・検討中フォロー）'}</h2>
-  ${sel ? leadRows(list, sel.k === 'apo' || sel.k === 'nores' ? ['apo', 'name', 'tel', 'camp', 'deal', 'owner', 'recv'] : ['recv', 'wait', 'name', 'tel', 'pref', 'camp', 'st', 'cnt', 'last', 'next', 'owner'])
+  ${sel ? leadRows(list, sel.k === 'apo' || sel.k === 'nores' || sel.k === 'absent' ? ['apo', 'name', 'tel', 'camp', 'deal', 'owner', 'recv'] : ['recv', 'wait', 'name', ...GCOL(), 'tel', 'pref', 'camp', 'st', 'cnt', 'last', 'next', 'owner'])
       : list.length && MOB() ? mCards(list, true) : list.length ? `<div class="tblwrap"><table><thead><tr><th>理由</th><th>リード取得日</th><th>経過</th><th>氏名</th><th>電話番号</th><th>訴求</th><th>ステータス</th><th>架電</th><th>次回架電</th><th>${isVisit() ? '初回訪問日' : 'アポ日時'}</th><th>架電担当</th></tr></thead><tbody>${list.map(l => `<tr class="click" data-id="${l['リードID']}"><td><span class="${l._c === 'red' ? 'red' : l._c === 'yel' ? 'yel' : ''} b sm">${esc(l._why)}</span></td><td>${md(l['受信日時'])}</td><td>${l['ステータス'] === '未対応' ? ago(Math.max(0, l._wait)) : ''}</td><td><b>${esc(l['氏名'])}</b></td><td>${esc(l['電話番号'])}</td><td class="sm">${esc(campName(l['訴求']))}</td><td>${stBadge(l['ステータス'])}</td><td>${num(l['架電回数']) || ''}</td><td>${md(l['次回架電予定'])}</td><td>${md(l['アポ日時'])}</td><td>${esc(l['担当者'])}</td></tr>`).join('')}</tbody></table></div>`
       : '<div class="card empty">要対応のリードはありません 🎉</div>'}`;
 }
@@ -568,7 +587,7 @@ function renderList() {
   const k = UI.sort.k, d = UI.sort.d;
   list.sort((a, b) => String(a[k] || '').localeCompare(String(b[k] || '')) * d);
   // 訴求タブ（未対応・期限切れの件数を赤バッジで）
-  const todo = c => L.filter(l => (!c || l['訴求'] === c) && (l['ステータス'] === '未対応' || (l['ステータス'] === '追客中' && toD(l['次回架電予定']) && toD(l['次回架電予定']) < Date.now()))).length;
+  const todo = c => L.filter(l => (!c || l['訴求'] === c) && ((l['ステータス'] === '未対応' && !alertSkip_(l)) || (l['ステータス'] === '追客中' && toD(l['次回架電予定']) && toD(l['次回架電予定']) < Date.now()))).length;
   const tab = (key, label, sub) => { const n = todo(key); return `<button class="ctab ${F.camp === key ? 'on' : ''}" data-camp="${esc(key)}">${esc(label)}${sub ? ` <span class="tag">${esc(sub)}</span>` : ''}${n ? `<span class="cbadge" title="未対応・再架電期限切れ">${n}</span>` : ''}</button>`; };
   const tabs = `<div class="ctabs">${tab('', 'すべての訴求')}${camps.map(c => tab(c['訴求'], c['表示名'] || c['訴求'], c['状態'] && c['状態'] !== '配信中' ? c['状態'] : '')).join('')}</div>`;
   // 訴求を選んでいるとき：トークスクリプト＋その訴求のアンケート項目を列に出す
@@ -601,7 +620,7 @@ function renderList() {
     <span class="sub sm">${list.length}件</span>
   </div>
   <div class="lwrap">${F.tree === false ? '' : `<div class="stree">${TREE.map(n => `<span class="chip ${(F.st || 'all') === n.k ? 'on' : ''}" data-st="${n.k === 'all' ? '' : n.k}" style="margin-left:${n.d * 12}px">${n.d ? '<span class="sub">∟</span> ' : ''}${esc(n.t)} <b>${base.filter(n.f).length}</b></span>`).join('')}</div>`}
-  <div class="lmain">${F.view === 'prog' ? progRows(list.slice(0, 500), !F.camp) : leadRows(list.slice(0, 500), DCOLS ? ['recv', 'wait', ...(F.camp ? [] : ['camp']), 'name', 'pref', 'tel', ...qcols, 'memo', 'v1d', 'v1r', 'invd', 'invr', 'dd', 'dres', 'rvd', 'rvr', 'deal', 'sales', 'owner', 'rep'] : F.camp ? ['recv', 'wait', 'name', 'pref', 'tel', ...qcols, 'st', 'cnt', 'last', 'lastAt', 'hist', 'memo', 'next', ...DEALC] : ['recv', 'wait', 'camp', 'name', 'pref', 'tel', 'st', 'cnt', 'last', 'lastAt', 'hist', 'memo', 'next', ...DEALC])}
+  <div class="lmain">${F.view === 'prog' ? progRows(list.slice(0, 500), !F.camp) : leadRows(list.slice(0, 500), DCOLS ? ['recv', 'wait', ...(F.camp ? [] : ['camp']), 'name', ...GCOL(), 'pref', 'tel', ...qcols, 'memo', 'v1d', 'v1r', 'invd', 'invr', 'dd', 'dres', 'rvd', 'rvr', 'deal', 'sales', 'owner', 'rep'] : F.camp ? ['recv', 'wait', 'name', ...GCOL(), 'pref', 'tel', ...qcols, 'st', 'cnt', 'last', 'lastAt', 'hist', 'memo', 'next', ...DEALC] : ['recv', 'wait', 'camp', 'name', ...GCOL(), 'pref', 'tel', 'st', 'cnt', 'last', 'lastAt', 'hist', 'memo', 'next', ...DEALC])}
   ${list.length > 500 ? '<div class="note">先頭500件を表示しています。絞り込んでください。</div>' : ''}</div></div>`;
   const set = (id, key, ev = 'change') => $(id).addEventListener(ev, e => { F[key] = e.target.value; renderList(); if (id === '#fq') { $('#fq').focus(); $('#fq').setSelectionRange(99, 99); } });
   set('#fq', 'q', 'input'); set('#fowner', 'owner'); set('#frep', 'rep'); set('#ffrom', 'from'); set('#fto', 'to');
@@ -636,16 +655,18 @@ const dealRes = l => {
   const s = lastRes(l);
   if (s) return /契約|成約/.test(s) ? '成約' : /NG|失注|キャンセル|ツブレ/i.test(s) ? '失注' : /検討/.test(s) ? '検討' : ''; // 商談結果のツブレは失注
   const d = l['商談ステータス'];
-  return d === '成約' ? '成約' : d === '失注' ? '失注' : ['検討中', '現調・見積中'].includes(d) ? '検討' : '';
+  return d === '成約' ? '成約' : d === '失注' ? '失注' : dealMid().includes(d) ? '検討' : '';
 };
 // 初訪NG＝進捗表の訪問結果が NG・ツブレ（進捗表がないときは商談ステータスのツブレ）。それ以外のアポは商談
-const visitNG = l => { const v = String(l['進捗_訪問結果'] || ''); return v ? /NG|ツブレ/i.test(v) : l['商談ステータス'] === 'ツブレ'; };
+const visitNG = l => { const v = String(l['進捗_訪問結果'] || ''); return v ? /NG|ツブレ/i.test(v) : dealNG().includes(l['商談ステータス']); };
 const rankOf = l => { const r = String(l['進捗_ランク'] || '').toUpperCase().match(/[ABC]/); return r ? r[0] : ''; };
+const GCOL = () => (D.genderOn ? ['gender'] : []); // 一覧に性別の列を出すか
 const isInvalid = l => !l._valid; // 有効・無効はリード情報（会社ごとの定義＝サーバーの validRule）で決める
 function statusTree() {
   const DF = D.dealRule && D.dealRule.dateField;
   // アポを取ったリードはリード情報にかかわらず有効に数える（アポ数をそろえるため）
-  const val = l => l._apo || !isInvalid(l), fol = l => val(l) && !l._apo, ap = l => l._apo, mikR = l => /見込/.test(String(l['最終架電結果'] || '')), mik = l => fol(l) && mikR(l);
+  const val = l => l._apo || !isInvalid(l), dec = l => val(l) && !l._apo && l['ステータス'] === '断り', fol = l => val(l) && !l._apo && !dec(l), // 有効 → 否決（断り）／追客中／アポ
+    ap = l => l._apo, mikR = l => /見込/.test(String(l['最終架電結果'] || '')), mik = l => fol(l) && mikR(l);
   if (DF) {
     // 進捗表を使う会社：商談＝進捗表M列（商談日）あり／初訪NG＝商談日なし・訪問結果NGかツブレ／商談前＝それ以外で進捗表にあるアポ／進捗表なし＝架電シートでアポだが進捗表にまだない
     const vr = l => String(l['進捗_訪問結果'] || '').trim();
@@ -657,6 +678,7 @@ function statusTree() {
       { k: 'inv', t: '無効', d: 1, f: l => !val(l) },
       { k: 'imik', t: '見込み', d: 2, f: l => !val(l) && mikR(l) }, // 無効のうち、最終架電結果が「再架電/見込み」
       { k: 'val', t: '有効', d: 1, f: val },
+      { k: 'dec', t: '否決', d: 2, f: dec },
       { k: 'fol', t: '追客中', d: 2, f: fol },
       { k: 'mik', t: '見込み', d: 3, f: mik }, // 追客中のうち、最終架電結果が「再架電/見込み」
       // 2026-11-13 アームズ様の依頼：追客中を架電回数で分ける（12回以上 → 12回以上架電、それ以外 → 12回未満架電）
@@ -678,15 +700,16 @@ function statusTree() {
     { k: 'inv', t: '無効', d: 1, f: l => !val(l) },
       { k: 'imik', t: '見込み', d: 2, f: l => !val(l) && mikR(l) }, // 無効のうち、最終架電結果が「再架電/見込み」
     { k: 'val', t: '有効', d: 1, f: val },
+    { k: 'dec', t: '否決', d: 2, f: dec },
     { k: 'fol', t: '追客中', d: 2, f: fol },
       { k: 'mik', t: '見込み', d: 3, f: mik }, // 追客中のうち、最終架電結果が「再架電/見込み」
     { k: 'apo', t: 'アポ', d: 2, f: ap },
-    { k: 'fng', t: '初訪NG', d: 3, f: l => ap(l) && visitNG(l) },
+    { k: 'fng', t: D.dealNgLabel || '初訪NG', d: 3, f: l => ap(l) && visitNG(l) },
     { k: 'deal', t: '商談', d: 3, f: dl },
     { k: 'won', t: '成約', d: 4, f: l => dl(l) && dealRes(l) === '成約' },
     { k: 'lost', t: '失注', d: 4, f: l => dl(l) && dealRes(l) === '失注' },
     { k: 'cons', t: '検討', d: 4, f: cons },
-    { k: 'pre', t: '商談前', d: 4, f: l => dl(l) && !dealRes(l) },
+    { k: 'pre', t: DM().BEFORE, d: 4, f: l => dl(l) && !dealRes(l) },
   ];
 }
 
@@ -709,7 +732,7 @@ function metrics(L, cost) {
     if (l._apo) m.apo++;
     if (l._valid && (l['接続済'] === true || l['接続済'] === 'TRUE' || l['接続済'] === 'true')) m.validConn++;
     if (l._dealDone) m.deal++;
-    if (l['商談ステータス'] === 'ツブレ') m.cancel++;
+    if (dealNG().includes(l['商談ステータス'])) m.cancel++;
     if (l._won) { m.won++; m.sales += l._sales; m.gross += l._gross; if (l._grossEst) m.grossEst = true; }
     if (s === '失注' || l['商談ステータス'] === '失注') m.lost++;
     if (l._resp != null) m.resp.push(l._resp);
@@ -782,6 +805,45 @@ function timeAnalysis(L, months, id) {
   return { html, draw };
 }
 
+// 架電した時間帯別（何時に電話してつながった・アポが取れたか）。L＝対象のリード（prep済み）。ログの日時で集計（2026-11-20）
+// SMS・時刻のない記録（日付だけ・0:00）は数えない
+function callTimeAnalysis(L, id) {
+  const CONN = new Set(((D.master && D.master.results) || []).filter(r => r.connect).map(r => r.cat + '/' + r.val));
+  const H = [...Array(24).keys()].map(h => ({ h, calls: 0, conn: 0, apo: 0 }));
+  let n = 0;
+  L.forEach(l => (l._hist || []).forEach(g => {
+    if (g[4] === 'その他' && g[5] === 'SMS') return;
+    const s = String(g[0] || '');
+    if (!/\d{1,2}:\d{2}/.test(s) || /\s0?0:00(:00)?$/.test(s) || /^1899/.test(s)) return;
+    const d = toD(s); if (!d) return;
+    const x = H[d.getHours()]; x.calls++; n++;
+    if (g[4] === 'アポ' || g[4] === '断り' || CONN.has(g[4] + '/' + g[5])) x.conn++;
+    if (g[4] === 'アポ') x.apo++;
+  }));
+  const rows = H.filter(x => x.calls);
+  const html = `
+  <h2>架電した時間帯の分析 <span class="sub sm">架電した日時で集計（${n}回）</span></h2>
+  <div class="note">※ 何時に電話して、本人とつながったか・アポが取れたかを見る表です。接続率＝本人と話せた架電÷架電数、アポ率＝アポが取れた架電÷架電数。SMSと、時刻の記録がない架電は除いています。</div>
+  <div class="grid two">
+    <div class="card"><h3>架電した時間帯別</h3><canvas id="${id}Hour" height="220"></canvas></div>
+    <div class="card"><h3>架電した時間帯別（表）</h3><div class="tblwrap" style="max-height:330px"><table><thead><tr><th>時間帯</th><th class="num">架電数</th><th class="num">接続</th><th class="num">接続率</th><th class="num">アポ</th><th class="num">アポ率</th></tr></thead><tbody>${rows.length ? rows.map(x => `<tr><td>${x.h}時台</td><td class="num b">${x.calls}</td><td class="num">${x.conn}</td><td class="num">${pct(x.conn, x.calls)}</td><td class="num">${x.apo}</td><td class="num">${pct(x.apo, x.calls)}</td></tr>`).join('') : '<tr><td colspan="6" class="sub">架電の記録がありません</td></tr>'}</tbody></table></div></div>
+  </div>`;
+  const draw = () => {
+    if (!window.Chart || !document.getElementById(id + 'Hour') || !rows.length) return;
+    const from = Math.min(...rows.map(x => x.h)), to = Math.max(...rows.map(x => x.h)), R = H.slice(from, to + 1);
+    charts.push(new Chart(document.getElementById(id + 'Hour'), {
+      data: { labels: R.map(x => x.h + '時'), datasets: [
+        { type: 'line', label: '接続率', data: R.map(x => x.calls ? +(x.conn / x.calls * 100).toFixed(1) : null), yAxisID: 'y2', borderColor: '#2f9e6b', backgroundColor: '#2f9e6b', spanGaps: true, order: 0 },
+        { type: 'line', label: 'アポ率', data: R.map(x => x.calls ? +(x.apo / x.calls * 100).toFixed(1) : null), yAxisID: 'y2', borderColor: '#e8710a', backgroundColor: '#e8710a', spanGaps: true, order: 0 },
+        { type: 'bar', label: '架電数', data: R.map(x => x.calls), backgroundColor: '#c6d4ff', order: 2 },
+        { type: 'bar', label: 'アポ', data: R.map(x => x.apo), backgroundColor: '#1f5eff', order: 1 },
+      ] },
+      options: { responsive: true, interaction: { mode: 'index', intersect: false }, scales: { y: { beginAtZero: true, title: { display: true, text: '回' } }, y2: { position: 'right', beginAtZero: true, grid: { display: false }, ticks: { callback: v => v + '%' } } } },
+    }));
+  };
+  return { html, draw };
+}
+
 // 発生月で数え直す：m（リード取得月の集計）のアポ・商談・成約・売上を、pool（絞り込み済みの全期間リード）のうち months に起きたもので置き換える。リード数・広告費はそのまま
 function evApply(m, pool, months, filtered) {
   const evM = (l, ...ks) => { for (const k of ks) { const v = String(l[k] || ''); if (v) return v.slice(0, 7); } return ''; };
@@ -805,14 +867,14 @@ function renderAna() {
   const inCMa = l => (!F.camp || l['訴求'] === F.camp) && (!F.media || hasMedia(l._media, F.media));
   // サマリ（KPI）：発生月で見るときはアポ・商談・成約・売上をその期間に起きた件数に（ファネルはリード起点のまま）
   const MS = EV ? evApply(metrics(L, costOf(months, F.camp, F.media)), D.leads.filter(inCMa), months, !!(F.camp || F.media)) : M;
-  const row = (label, m, extra = '') => `<tr ${extra}><td>${label}</td>
-    <td class="num">${yen(m.cost)}</td><td class="num">${m.n}</td><td class="num">${m.valid}</td><td class="num">${pct(m.valid, m.n)}</td><td class="num cpa">${yen(div(m.cost, m.n))}</td><td class="num">${yen(div(m.cost, m.valid))}</td>
-    <td class="num">${pct(m.called, m.uniq)}</td><td class="num">${pct(m.conn, m.called)}</td>
-    <td class="num b">${m.apo}</td><td class="num">${pct(m.apo, m.valid)}</td><td class="num cpa">${yen(div(m.cost, m.apo))}</td>
+  const row = (label, m, extra = '') => { const yc = v => (m.noCost ? '-' : yen(v)); return `<tr ${extra}><td>${label}</td>
+    <td class="num">${yc(m.cost)}</td><td class="num">${m.n}</td><td class="num">${m.valid}</td><td class="num">${pct(m.valid, m.n)}</td><td class="num cpa">${yc(div(m.cost, m.n))}</td><td class="num">${yc(div(m.cost, m.valid))}</td>
+    <td class="num">${pct(m.called, m.uniq)}</td><td class="num">${m.validConn}</td><td class="num">${pct(m.validConn, m.valid)}</td>
+    <td class="num b">${m.apo}</td><td class="num">${pct(m.apo, m.valid)}</td><td class="num">${pct(m.apo, m.validConn)}</td><td class="num cpa">${yc(div(m.cost, m.apo))}</td>
     <td class="num">${m.deal}</td><td class="num">${pct(m.deal, m.apo)}</td>
-    <td class="num b">${m.won}</td><td class="num">${pct(m.won, m.deal)}</td><td class="num cpa">${yen(div(m.cost, m.won))}</td>
-    <td class="num b">${yen(m.sales)}</td><td class="num">${yen(m.gross)}${m.grossEst ? '<span class="sub">*</span>' : ''}</td><td class="num ${m.profit < 0 ? 'red' : ''}">${m.cost ? yen(m.profit) : '-'}</td><td class="num">${m.cost ? (m.sales / m.cost * 100).toFixed(0) + '%' : '-'}</td></tr>`;
-  const thead = first => `<thead><tr><th>${first}</th><th class="num">広告費</th><th class="num">リード</th><th class="num">有効</th><th class="num">有効率</th><th class="num cpa">CPL</th><th class="num">有効CPL</th><th class="num">架電率</th><th class="num">接続率</th><th class="num">アポ</th><th class="num">アポ率</th><th class="num cpa">アポ単価</th><th class="num">商談</th><th class="num">商談実施率</th><th class="num">成約</th><th class="num">成約率</th><th class="num cpa">成約単価</th><th class="num">売上</th><th class="num">粗利</th><th class="num">粗利−広告費</th><th class="num">ROAS</th></tr></thead>`;
+    <td class="num b">${m.won}</td><td class="num">${pct(m.won, m.deal)}</td><td class="num cpa">${yc(div(m.cost, m.won))}</td>
+    <td class="num b">${yen(m.sales)}</td><td class="num">${yen(m.gross)}${m.grossEst ? '<span class="sub">*</span>' : ''}</td><td class="num ${m.profit < 0 ? 'red' : ''}">${m.cost ? yen(m.profit) : '-'}</td><td class="num">${m.cost ? (m.sales / m.cost * 100).toFixed(0) + '%' : '-'}</td></tr>`; };
+  const thead = first => `<thead><tr><th>${first}</th><th class="num">広告費</th><th class="num">リード</th><th class="num">有効</th><th class="num">有効率</th><th class="num cpa">CPL</th><th class="num">有効CPL</th><th class="num">架電率</th><th class="num">接続数</th><th class="num">接続率</th><th class="num">アポ</th><th class="num">有効アポ率</th><th class="num">接続アポ率</th><th class="num cpa">アポ単価</th><th class="num">商談</th><th class="num">商談実施率</th><th class="num">成約</th><th class="num">成約率</th><th class="num cpa">成約単価</th><th class="num">売上</th><th class="num">粗利</th><th class="num">粗利−広告費</th><th class="num">ROAS</th></tr></thead>`;
   const byCamp = camps.filter(c => !F.camp || c['訴求'] === F.camp).filter(c => !F.media || hasMedia(c['媒体'], F.media))
     .filter(c => !F.live || c['出稿'] === '出稿中') // 「出稿中だけ」：QuanteeADで昨日・今日に費用が出ている訴求
     .map(c => { const m = metrics(L.filter(l => l['訴求'] === c['訴求']), costOf(months, c['訴求'])); if (EV) evApply(m, D.leads.filter(l => l['訴求'] === c['訴求'] && inCMa(l)), months, true); return { c, m }; }).filter(x => x.m.n || x.m.cost || x.m.apo || x.m.deal || x.m.won);
@@ -829,12 +891,54 @@ function renderAna() {
       const L2 = D.leads.filter(inCM);
       const won = L2.filter(l => l._won && evMon(l, '成約日', '商談実施日', 'アポ日時') === ym);
       m.apo = apoByEvent(ym, L2, !!(F.camp || F.media)); // 決まった日までは固定値（訴求・媒体で絞ったときはシステムの数）
+      m.validConn = L2.filter(l => l._valid && l._conn && l._connAt.slice(0, 7) === ym).length; // 接続数も接続した月で数える（接続アポ率をアポと同じ基準にする）
       m.deal = L2.filter(l => l._dealDone && l._dealMon === ym).length;
       m.won = won.length; m.sales = won.reduce((s, l) => s + l._sales, 0); m.gross = won.reduce((s, l) => s + l._gross, 0);
       m.grossEst = won.some(l => l._grossEst); m.profit = m.gross - m.cost;
     }
     return { ym, m };
   });
+  // 日別・週別。広告費は ⚙広告費_日別（QuanteeADの日別の費用）がある日だけ出す。1日でも欠ける週・日は「-」（割り振って推測しない）
+  const G = F.gran || 'month';
+  const dOf = s => { const x = String(s || '').match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/); return x ? `${x[1]}-${p2(+x[2])}-${p2(+x[3])}` : ''; };
+  const addD = (d, n) => { const [y, mo, da] = d.split('-').map(Number); return new Date(Date.UTC(y, mo - 1, da + n)).toISOString().slice(0, 10); };
+  const wdOf = d => { const [y, mo, da] = d.split('-').map(Number); return new Date(Date.UTC(y, mo - 1, da)).getUTCDay(); };
+  const keyOf = d => (!d ? '' : G === 'week' ? addD(d, -((wdOf(d) + 6) % 7)) : d); // 週は月曜はじまり
+  const lastDayOf = ym => { const [y, mo] = ym.split('-').map(Number); return new Date(Date.UTC(y, mo, 0)).toISOString().slice(0, 10); };
+  const mdOf = d => `${+d.slice(5, 7)}/${+d.slice(8, 10)}`;
+  let buckets = [];
+  if (G !== 'month') {
+    const d0 = F.from + '-01', d1 = [lastDayOf(F.to), today()].sort()[0];
+    const keys = [], daysOf = {};
+    for (let d = d0; d <= d1; d = addD(d, 1)) { const k = keyOf(d); if (keys[keys.length - 1] !== k) keys.push(k); (daysOf[k] = daysOf[k] || []).push(d); }
+    const AD = D.adcostDaily || null, covered = new Set((AD || []).map(x => x.d));
+    // 日別の表より前の日：その月の広告費（月額）が日別の合計で説明できる＝配信開始前で費用なし、なら0円として扱う
+    const first = AD && AD.length ? AD.map(x => x.d).sort()[0] : '';
+    const monCost = ym => D.adcost.filter(c => c.ym === ym).reduce((s, c) => s + c.cost, 0);
+    const dayMon = ym => (AD || []).filter(x => x.d.slice(0, 7) === ym).reduce((s, x) => s + x.cost, 0);
+    const preOK = {};
+    const isCovered = d => { if (covered.has(d)) return true; if (!first || d >= first) return false; const ym = d.slice(0, 7); if (!(ym in preOK)) { const mc = monCost(ym); preOK[ym] = mc - dayMon(ym) <= Math.max(3000, mc * 0.02); } return preOK[ym]; };
+    const dayCost = days => { const set = new Set(days); return (AD || []).filter(x => set.has(x.d) && (!F.camp || x.camp === F.camp) && (!F.media || hasMedia(CAMP(x.camp)['媒体'], F.media))).reduce((s, x) => s + x.cost, 0); };
+    const L2 = D.leads.filter(inCM);
+    const DF = D.dealRule && D.dealRule.dateField;
+    buckets = keys.map(k => {
+      const m = metrics(L2.filter(l => { const d = dOf(l['受信日時']); return d >= d0 && d <= d1 && keyOf(d) === k; }), 0);
+      if (F.basis !== 'recv') {
+        const won = L2.filter(l => l._won && keyOf(dOf(l['成約日'] || l['商談実施日'] || l['アポ日時'])) === k);
+        m.apo = L2.filter(l => l._apo && keyOf(dOf(l['アポ獲得日'] || l['アポ日時'])) === k).length;
+        m.validConn = L2.filter(l => l._valid && l._conn && keyOf(dOf(l._connAt)) === k).length;
+        m.deal = L2.filter(l => l._dealDone && keyOf(dOf((DF ? l[DF] : '') || l['商談実施日'] || l['アポ日時'] || l['アポ獲得日'])) === k).length;
+        m.won = won.length; m.sales = won.reduce((s, l) => s + l._sales, 0); m.gross = won.reduce((s, l) => s + l._gross, 0);
+        m.grossEst = won.some(l => l._grossEst);
+      }
+      // 週は、範囲の頭（選んだ月の前の日）を除いて、表示する日がすべて日別の広告費でそろっているときだけ出す
+      const days = daysOf[k] || [];
+      if (AD && days.length && days.every(isCovered)) { m.cost = dayCost(days); m.profit = m.gross - m.cost; } else m.noCost = true;
+      return { ym: G === 'week' ? `${mdOf(k)}〜${mdOf(addD(k, 6))}` : `${mdOf(k)}（${WDAY[wdOf(k)]}）`, m };
+    });
+  }
+  const series = G === 'month' ? byMon : buckets;
+  const gName = G === 'day' ? '日別' : G === 'week' ? '週別' : '月別';
   // 架電スピード別
   const SP = [['5分以内', 0, 5], ['5〜30分', 5, 30], ['30分〜1時間', 30, 60], ['1〜3時間', 60, 180], ['3時間〜当日', 180, 1440], ['翌日以降', 1440, 1e9]];
   const valid = L.filter(l => l._valid);
@@ -864,6 +968,7 @@ function renderAna() {
     ansHtml = Object.entries(qs).map(([q, as]) => `<div style="margin-bottom:14px"><div class="b sm" style="margin-bottom:4px">${esc(q)}</div><table><thead><tr><th>回答</th><th class="num">有効リード</th><th class="num">アポ</th><th class="num">アポ率</th><th class="num">成約</th></tr></thead><tbody>${Object.entries(as).sort((a, b) => b[1].n - a[1].n).map(([a, o]) => `<tr><td>${esc(a)}</td><td class="num">${o.n}</td><td class="num">${o.apo}</td><td class="num b">${pct(o.apo, o.n)}</td><td class="num">${o.won}</td></tr>`).join('')}</tbody></table></div>`).join('') || '<div class="sub sm">回答データがありません</div>';
   }
   const TA = timeAnalysis(L, months, 'ta');
+  const CT = callTimeAnalysis(L, 'ct');
   const fun = [['リード', M.n], ['有効リード', M.valid], ['本人と接続', M.validConn], ['アポ', M.apo], [(D.dealRule && D.dealRule.label) || '商談実施', M.deal], ['成約', M.won]];
   const funMax = Math.max(1, M.n);
 
@@ -887,13 +992,14 @@ function renderAna() {
     <div class="card kpi hl"><div class="l">粗利 − 広告費</div><div class="v" style="color:${MS.profit < 0 ? '#ffb4ab' : '#b7f5c4'}">${MS.cost ? yenS(MS.profit) : '-'}</div><div class="s">粗利ROI ${MS.cost ? (MS.profit / MS.cost * 100).toFixed(0) + '%' : '-'}</div></div>
     <div class="card kpi"><div class="l">初回架電までの時間</div><div class="v">${M.respMed != null ? ago(M.respMed) : '-'}</div><div class="s">中央値（受付時間内換算）</div></div>
   </div>
-  <h2>月別の成果</h2>
+  <h2 style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">${gName}の成果 <span class="seg" style="font-size:13px;font-weight:400"><button data-gran="month" class="${G === 'month' ? 'on' : ''}">月</button><button data-gran="week" class="${G === 'week' ? 'on' : ''}">週</button><button data-gran="day" class="${G === 'day' ? 'on' : ''}">日</button></span></h2>
+  ${G !== 'month' ? '<div class="note">上で選んだ期間（リード取得月）の範囲を、' + (G === 'week' ? '月曜はじまりの週' : '1日') + 'ごとに出しています（新しい順）。' + (D.adcostDaily ? '当日分の広告費は暫定です。' : '広告費は月ごとの金額のため、日・週では広告費と単価（CPL・アポ単価など）は出していません。') + '</div>' : ''}
   <div class="filters" style="margin:4px 0"><span class="seg"><button data-basis="event" class="${F.basis !== 'recv' ? 'on' : ''}">発生月で見る</button><button data-basis="recv" class="${F.basis === 'recv' ? 'on' : ''}">リード取得月で見る</button></span>
     <span class="sub sm">${F.basis !== 'recv' ? 'アポ＝アポを取った月、商談＝商談した月、成約・売上＝成約した月で数えます（リード数・広告費はリード取得月）。率は目安です。' + (D.apoFixed ? ` ${md(D.apoFixed.until)}までのアポ数は、それまでの管理の数字で固定しています（訴求・媒体で絞ったときはシステムの数え方）。` : '') : 'その月に取得したリードが、あとでアポ・商談・成約になった数です。'}</span></div>
-  <div class="tblwrap"><table>${thead(F.basis !== 'recv' ? '月' : 'リード取得月')}<tbody>${byMon.map(x => row(x.ym, x.m)).join('')}</tbody></table></div>
+  <div class="tblwrap"${G === 'day' ? ' style="max-height:480px"' : ''}><table>${thead(G === 'week' ? '週（月曜〜）' : G === 'day' ? '日' : F.basis !== 'recv' ? '月' : 'リード取得月')}<tbody>${(G === 'month' ? series : series.slice().reverse()).map(x => row(x.ym, x.m)).join('')}</tbody></table></div>
   <div class="grid two">
     <div class="card"><h3>ファネル</h3>${fun.map(([k, v], i) => `<div class="bar funnel"><div class="lb">${k}</div><div class="tr"><div class="fl" style="width:${v / funMax * 100}%"></div></div><div class="vl">${v}件${i ? ' <span class="sub">' + pct(v, fun[i - 1][1]) + '</span>' : ''}</div></div>`).join('')}<div class="note">右の％は1つ前の段階からの移行率。有効リード＝${esc(D.validRule.label)}</div></div>
-    <div class="card"><h3>月別推移</h3><canvas id="chMon" height="200"></canvas></div>
+    <div class="card"><h3>${gName}推移</h3><canvas id="chMon" height="200"></canvas></div>
   </div>
   <h2 style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">訴求別の成果${hasLive ? ` <span class="seg" style="font-size:13px;font-weight:400"><button data-live="" class="${F.live ? '' : 'on'}">すべて</button><button data-live="1" class="${F.live ? 'on' : ''}" title="QuanteeADで昨日・今日に広告費が出ている訴求だけ">出稿中だけ</button></span>` : ''}</h2>
   <div class="tblwrap"><table>${thead('訴求')}<tbody>${byCamp.map(x => row(`<b>${esc(x.c['表示名'] || x.c['訴求'])}</b>${x.c['出稿'] ? ` <span class="tag ${x.c['出稿'] === '出稿中' ? 'live' : 'stop'}" title="QuanteeADで昨日・今日に費用が出ているか">${esc(x.c['出稿'])}</span>` : ''} <span class="tag">${esc(x.c['媒体'] || '')}</span>${x.c['状態'] && x.c['状態'] !== '配信中' ? ` <span class="tag">${esc(x.c['状態'])}</span>` : ''}`, x.m)).join('')}${row(F.live ? '合計（出稿中）' : '合計', Mtab, 'class="total"')}</tbody></table></div>
@@ -915,6 +1021,7 @@ function renderAna() {
     <div class="card"><h3>都道府県別</h3><div class="tblwrap" style="max-height:320px"><table><thead><tr><th>都道府県</th><th class="num">リード</th><th class="num">有効リード</th><th class="num">アポ</th><th class="num">アポ率</th><th class="num">成約</th><th class="num">売上</th></tr></thead><tbody>${Object.entries(prefs).sort((a, b) => b[1].all - a[1].all || b[1].n - a[1].n).map(([p, o]) => `<tr><td>${esc(p)}</td><td class="num">${o.all}</td><td class="num">${o.n}</td><td class="num">${o.apo}</td><td class="num b">${pct(o.apo, o.n)}</td><td class="num">${o.won}</td><td class="num">${yen(o.sales)}</td></tr>`).join('') || '<tr><td colspan="7" class="empty">データなし</td></tr>'}</tbody></table></div><div class="note">リード＝すべて（スプレッドシートの件数と同じ）。有効リード＝${esc((D.validRule && D.validRule.label) || '')}。アポ率は有効リードに対して。</div></div>
   </div>
   ${TA.html}
+  ${CT.html}
   <h2>アンケート回答別 ${F.camp ? '— ' + esc(campName(F.camp)) : ''}</h2>
   <div class="card">${ansHtml}</div>`;
 
@@ -922,6 +1029,7 @@ function renderAna() {
   sv('#afrom', 'from'); sv('#ato', 'to'); sv('#acamp', 'camp'); sv('#amedia', 'media');
   document.querySelectorAll('#p-ana [data-basis]').forEach(b => b.onclick = () => { F.basis = b.dataset.basis; renderAna(); });
   document.querySelectorAll('#p-ana [data-live]').forEach(b => b.onclick = () => { F.live = !!b.dataset.live; renderAna(); });
+  document.querySelectorAll('#p-ana [data-gran]').forEach(b => b.onclick = () => { F.gran = b.dataset.gran; renderAna(); });
   document.querySelectorAll('[data-q]').forEach(b => b.onclick = () => {
     const c = today().slice(0, 7); const [y, m] = c.split('-').map(Number); const last = m === 1 ? `${y - 1}-12` : `${y}-${p2(m - 1)}`;
     if (b.dataset.q === 'this') F.from = F.to = c; if (b.dataset.q === 'last') F.from = F.to = last; if (b.dataset.q === 'all') { F.from = allMons[0]; F.to = c; }
@@ -929,13 +1037,14 @@ function renderAna() {
   });
   charts.forEach(c => c.destroy()); charts = [];
   TA.draw();
+  CT.draw();
   if (window.Chart) {
     charts.push(new Chart($('#chMon'), {
-      data: { labels: byMon.map(x => x.ym), datasets: [
-        { type: 'line', label: 'アポ率', data: byMon.map(x => x.m.valid ? +(x.m.apo / x.m.valid * 100).toFixed(1) : null), yAxisID: 'y2', borderColor: '#e8710a', backgroundColor: '#e8710a', order: 0 },
-        { type: 'bar', label: 'リード', data: byMon.map(x => x.m.n), backgroundColor: '#c6d4ff', order: 2 },
-        { type: 'bar', label: 'アポ', data: byMon.map(x => x.m.apo), backgroundColor: '#1f5eff', order: 1 },
-        { type: 'bar', label: '成約', data: byMon.map(x => x.m.won), backgroundColor: '#137333', order: 1 },
+      data: { labels: series.map(x => x.ym), datasets: [
+        { type: 'line', label: 'アポ率', data: series.map(x => x.m.valid ? +(x.m.apo / x.m.valid * 100).toFixed(1) : null), yAxisID: 'y2', borderColor: '#e8710a', backgroundColor: '#e8710a', order: 0 },
+        { type: 'bar', label: 'リード', data: series.map(x => x.m.n), backgroundColor: '#c6d4ff', order: 2 },
+        { type: 'bar', label: 'アポ', data: series.map(x => x.m.apo), backgroundColor: '#1f5eff', order: 1 },
+        { type: 'bar', label: '成約', data: series.map(x => x.m.won), backgroundColor: '#137333', order: 1 },
       ] },
       options: { responsive: true, interaction: { mode: 'index', intersect: false }, scales: { y: { beginAtZero: true, title: { display: true, text: '件' } }, y2: { position: 'right', beginAtZero: true, grid: { display: false }, ticks: { callback: v => v + '%' } } } },
     }));
@@ -1085,7 +1194,7 @@ function drawLead(l, logs) {
   $('#drawer').innerHTML = `
   <div class="dh">
     <div style="display:flex;justify-content:space-between;align-items:start;gap:10px">
-      <div><div class="nm">${esc(l['氏名'])} 様 ${stBadge(l['ステータス'])}${l._notHouse ? '<span class="nh">持ち家戸建て以外の回答（有効リード外）</span>' : ''}${l._areaOut ? '<span class="nh">対応エリア外（有効リード外）</span>' : ''}</div>
+      <div><div class="nm">${esc(l['氏名'])} 様${D.genderOn && l['性別'] ? ` <span class="sub sm">（${esc(l['性別'])}）</span>` : ''} ${stBadge(l['ステータス'])}${l._notHouse ? '<span class="nh">持ち家戸建て以外の回答（有効リード外）</span>' : ''}${l._areaOut ? '<span class="nh">対応エリア外（有効リード外）</span>' : ''}</div>
       <a class="tel" href="tel:${esc(l['電話番号'])}">📞 ${esc(l['電話番号'])}</a> <span class="sub">${esc(l['都道府県'])}</span></div>
       <button class="btn" id="dclose">閉じる</button>
     </div>
@@ -1131,6 +1240,7 @@ function drawLead(l, logs) {
 
     <div class="sec"><h3>架電担当・メモ</h3>
       <div class="form"><label>架電担当</label><div><select id="uOwner"><option value="">-</option>${callers.map(c => `<option ${l['担当者'] === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select> <button class="btn sm" id="uSave">変更</button></div></div>
+      ${D.genderOn ? `<div class="form" style="margin-top:6px"><label>性別</label><div><select id="uGender"><option value="">-</option>${['男性', '女性', '不明'].concat(l['性別'] && !['男性', '女性', '不明'].includes(l['性別']) ? [l['性別']] : []).map(g => `<option ${l['性別'] === g ? 'selected' : ''}>${esc(g)}</option>`).join('')}</select> <button class="btn sm" id="uGSave">変更</button></div></div>` : ''}
       ${l['メモ'] ? `<div class="memo" style="margin-top:8px">${esc(l['メモ'])}</div>` : ''}
       ${l['進捗メモ'] ? `<div class="sub sm" style="margin-top:8px">訪問・商談の記録（進捗表より）</div><div class="memo">${esc(l['進捗メモ'])}</div>` : ''}
     </div>
@@ -1170,6 +1280,7 @@ function drawLead(l, logs) {
     saveAnd('api_saveDeal', l, Object.assign({ deal: $('#dDeal').value, apoAt: $('#dApo').value.replace('T', ' '), apoType: $('#dApoType').value, date: $('#dDate').value.replace('T', ' '), quote: $('#dQuote').value, product: $('#dProd').value, wonDate: $('#dWon').value || (VISIT && $('#dDeal').value === '成約' ? $('#dDate').value.slice(0, 10) : ''), sales: $('#dSales').value, gross: $('#dGross').value, lostReason: $('#dLost').value, sales_rep: $('#dRep').value, memo: $('#dMemo').value }, VISIT ? { revisit: $('#dRevisit').value.replace('T', ' ') } : {}), '商談を保存しました');
   };
   $('#uSave').onclick = () => saveAnd('api_updateLead', l, { owner: $('#uOwner').value }, '担当者を変更しました');
+  if ($('#uGSave')) $('#uGSave').onclick = () => saveAnd('api_updateLead', l, { gender: $('#uGender').value }, '性別を変更しました');
 }
 
 async function saveAnd(fn, l, p, msg) {
